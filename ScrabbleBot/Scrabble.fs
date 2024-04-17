@@ -72,11 +72,9 @@ module Scrabble =
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            // let input =  System.Console.ReadLine()
-            // let move = RegEx.parseMove input
             let move = getMove st
             
-            //debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
             send cstream (move)
 
             let msg = recv cstream
@@ -84,10 +82,10 @@ module Scrabble =
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
+                Printf.printf "Successful play! Points: %d\n" points
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-                let st' = st // This state needs to be updated
                 
-                let st'.hand = MultiSet.add 1u 1u st'.hand
+                let st' = st // This state needs to be updated
                 aux st'
                 
             | RCM (CMPlayed (pid, ms, points)) ->
@@ -99,9 +97,10 @@ module Scrabble =
                 let st' = st // This state needs to be updated
                 aux st'
             | RCM (CMGameOver _) -> ()
-            | RCM a -> failwith (sprintf "not implmented: %A" a)
+            | RCM a ->
+                    forcePrint (sprintf "FALIURE!! not implmented: %A\n" a)
+                    failwith (sprintf "not implmented: %A" a)
             | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
-
 
         aux st
 
