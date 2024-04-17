@@ -38,8 +38,8 @@ module RegEx =
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
 module State = 
-    // Make sure to keep your state localised in this module. It makes your life a whole lot easier.
-    // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
+    // Make sure to keep your state localized in this module. It makes your life a whole lot easier.
+    // Currently, it only keeps track of your hand, your player number, your board, and your dictionary,
     // but it could, potentially, keep track of other useful
     // information, such as number of players, player turn, etc.
 
@@ -60,7 +60,7 @@ module State =
 module Scrabble =
     open System.Threading
 
-    //get the move to play
+    // Get the move to play
     let rec getMove (st : State.state) =
         //pass for now
         SMPass
@@ -97,9 +97,10 @@ module Scrabble =
                 let st' = st // This state needs to be updated
                 aux st'
             | RCM (CMGameOver _) -> ()
+            | RCM (CMPassed (pid)) -> aux st
             | RCM a ->
-                    forcePrint (sprintf "FALIURE!! not implmented: %A\n" a)
-                    failwith (sprintf "not implmented: %A" a)
+                    forcePrint (sprintf "FAILURE!! not implemented: %A\n" a)
+                    failwith (sprintf "not implemented: %A" a)
             | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
 
         aux st

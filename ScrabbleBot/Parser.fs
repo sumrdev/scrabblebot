@@ -1,5 +1,5 @@
 ﻿// ScrabbleUtil contains the types coord, boardProg, and SquareProg. Remove these from your file before proceeding.
-// Also note that the modulse Ass7 and ImpParser have been merged to one module called Parser.
+// Also note that the module Ass7 and ImpParser have been merged to one module called Parser.
 
 // Insert your Parser.fs file here from Assignment 7. All modules must be internal.
 
@@ -50,8 +50,6 @@ module internal Parser
     let charListToString charList = charList |> Array.ofList |> System.String
     let pid = pletter <|> pchar '_' .>>. many (pletter <|> palphanumeric) |>> fun ((a, b)) -> a::b |> charListToString
 
-    
-    let unop op a = op >*>. a
     let binop op a b = a .>*> op .>*>. b
 
     let TermParse, tref = createParserForwardedToRef<aExp>()
