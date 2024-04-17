@@ -8,7 +8,8 @@ module internal StateMonad
         | VarNotFound of string
         | IndexOutOfBounds of int
         | DivisionByZero 
-        | ReservedName of string           
+        | ReservedName of string
+        | ArgumentException of string      
 
     type Result<'a, 'b>  =
         | Success of 'a
@@ -47,15 +48,25 @@ module internal StateMonad
 
     let push : SM<unit> = 
         S (fun s -> Success ((), {s with vars = Map.empty :: s.vars}))
+    
+    let pop : SM<unit> = S (fun s -> 
+        match s.vars with
+        | [] -> Failure(ArgumentException "No more states to pop")
+        | _ :: rest -> Success((),{ s with vars = rest}))
+    
+    let wordLength : SM<int> = S (fun s -> Success (s.word.Length, s))   
 
-    let pop : SM<unit> = failwith "Not implemented"      
+    let characterValue (pos : int) : SM<char> = S (fun s -> 
+       match pos with
+        | i when i < 0 || i > s.word.Length-1 -> Failure(IndexOutOfBounds i)
+        | _ -> Success(fst s.word.[pos], s)
+    )
 
-    let wordLength : SM<int> = failwith "Not implemented"      
-
-    let characterValue (pos : int) : SM<char> = failwith "Not implemented"      
-
-    let pointValue (pos : int) : SM<int> = failwith "Not implemented"      
-
+    let pointValue (pos : int) : SM<int> = S (fun s -> 
+       match pos with
+        | i when i < 0 || i > s.word.Length -> Failure(IndexOutOfBounds i)
+        | _ -> Success(snd s.word.[pos], s)
+    )     
     let lookup (x : string) : SM<int> = 
         let rec aux =
             function
@@ -69,6 +80,6 @@ module internal StateMonad
               match aux (s.vars) with
               | Some v -> Success (v, s)
               | None   -> Failure (VarNotFound x))
-
+    //TODO: see if this is needed
     let declare (var : string) : SM<unit> = failwith "Not implemented"   
     let update (var : string) (value : int) : SM<unit> = failwith "Not implemented"      

@@ -1,4 +1,4 @@
-﻿namespace YourClientName
+﻿namespace CoolestBotAround
 
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
@@ -7,7 +7,7 @@ open System.IO
 
 open ScrabbleUtil.DebugPrint
 
-// The RegEx module is only used to parse human input. It is not used for the final product.
+// TODO: The RegEx module is only used to parse human input. It is not used for the final product.
 
 module RegEx =
     open System.Text.RegularExpressions
@@ -45,7 +45,7 @@ module State =
         board         : Parser.board
         dict          : ScrabbleUtil.Dictionary.Dict
         playerNumber  : uint32
-        hand          : MultiSet.MultiSet<uint32>
+        hand          : MultiSet.MultiSet<uint32> // Multiset of piece ids and their counts, received from the server
     }
 
     let mkState b d pn h = {board = b; dict = d;  playerNumber = pn; hand = h }
@@ -58,6 +58,11 @@ module State =
 module Scrabble =
     open System.Threading
 
+    //get the move to play
+    let rec getMove (st : State.state) =
+        //pass for now
+        SMPass
+
     let playGame cstream pieces (st : State.state) =
 
         let rec aux (st : State.state) =
@@ -65,14 +70,15 @@ module Scrabble =
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let input =  System.Console.ReadLine()
-            let move = RegEx.parseMove input
-
-            debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (SMPlay move)
+            // let input =  System.Console.ReadLine()
+            // let move = RegEx.parseMove input
+            let move = getMove st
+            
+            //debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            send cstream (move)
 
             let msg = recv cstream
-            debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+           // debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
@@ -112,6 +118,7 @@ module Scrabble =
                       hand =  %A
                       timeout = %A\n\n" numPlayers playerNumber playerTurn hand timeout)
 
+        //TODO: use a trie or gaddag
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP

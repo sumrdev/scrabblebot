@@ -4,9 +4,6 @@ module internal Eval
 
     open StateMonad
 
-    let add a b = failwith "Not implemented"      
-    let div a b = failwith "Not implemented"      
-
     type aExp =
         | N of int
         | V of string
@@ -38,6 +35,8 @@ module internal Eval
 
        | IsVowel of cExp      (* check for vowel *)
        | IsConsonant of cExp  (* check for constant *)
+       | IsLetter of cExp
+       | IsDigit of cExp
 
     let (.+.) a b = Add (a, b)
     let (.-.) a b = Sub (a, b)
@@ -57,11 +56,60 @@ module internal Eval
     let (.>=.) a b = ~~(a .<. b)                (* numeric greater than or equal to *)
     let (.>.) a b = ~~(a .=. b) .&&. (a .>=. b) (* numeric greater than *)    
 
-    let arithEval a : SM<int> = failwith "Not implemented"      
+    let binop f a b =
+        a >>= fun x -> 
+        b >>= fun y ->
+        ret (f x y)
 
-    let charEval c : SM<char> = failwith "Not implemented"      
+    let div a b = 
+        a >>= fun x -> 
+        b >>= fun y -> 
+            if y = 0 then fail DivisionByZero
+            else ret  (x / y)
+    
+    let modulo a b = 
+        a >>= fun x -> 
+        b >>= fun y -> 
+            if y = 0 then fail DivisionByZero
+            else ret  (x % y)
 
-    let boolEval b : SM<bool> = failwith "Not implemented"
+    let rec arithEval a : SM<int> = 
+        match a with
+        | N ex -> ret ex
+        | V key -> lookup key
+        | WL -> wordLength
+        | PV i -> arithEval i >>= fun a -> pointValue a
+        | Add (a, b) -> binop ( + ) (arithEval a) (arithEval b)
+        | Sub (a, b) -> binop ( - ) (arithEval a) (arithEval b)
+        | Mul (a, b) -> binop ( * ) (arithEval a) (arithEval b)
+        | Div (a, b) -> div (arithEval a) (arithEval b)
+        | Mod (a, b) -> modulo (arithEval a) (arithEval b)
+        | CharToInt a -> charEval a >>= fun x -> ret (int x)
+
+
+    and charEval c : SM<char> =
+        match c with
+        | C ex -> ret ex
+        | CV ex -> arithEval ex >>= fun x -> characterValue x
+        | ToUpper ex -> charEval ex >>= fun x -> ret (System.Char.ToUpper x)
+        | ToLower ex -> charEval ex >>= fun x -> ret (System.Char.ToLower x)
+        | IntToChar a -> arithEval a >>= fun x -> ret (char x)
+
+    and boolEval b : SM<bool> = 
+        match b with
+        | TT -> ret true
+        | FF -> ret false
+
+        | AEq (a, b) -> ret ((arithEval a) = (arithEval b))
+        | ALt (a, b) -> binop ( < ) (arithEval a) (arithEval b)
+
+        | Not a -> boolEval a >>= fun x -> ret (not x)
+        | Conj  (a, b) -> binop ( && ) (boolEval a) (boolEval b)
+
+        | IsVowel a -> charEval a >>= fun x -> ret ("aeuioAEOIU".Contains x)
+        | IsConsonant a -> charEval a >>= fun x -> ret ("bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ".Contains x)
+        | IsLetter a -> charEval a >>= fun x -> ret (System.Char.IsLetter x)
+        | IsDigit a -> charEval a >>= fun x -> ret (System.Char.IsDigit x) 
 
 
     type stm =                (* statements *)
