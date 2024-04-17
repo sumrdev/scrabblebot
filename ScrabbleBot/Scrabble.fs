@@ -94,15 +94,14 @@ module Scrabble =
         let rec aux (st : State.state) =
             //if not the player's turn, wait receive the message and call aux again
             
-
-            Print.printHand pieces (State.hand st)
-
-            // remove the force print when you move on from manual input (or when you have learnt the format)
-            forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let move = getMove st
-            
-            debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (move)
+            if(st.playerTurn = st.playerNumber) then
+                Print.printHand pieces (State.hand st)
+                // remove the force print when you move on from manual input (or when you have learnt the format)
+                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+                let move = getMove st
+                
+                debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                send cstream (move)
 
             let msg = recv cstream
            // debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
