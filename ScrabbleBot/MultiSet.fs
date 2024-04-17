@@ -46,7 +46,7 @@
 
     let union s1 s2 : MultiSet<'b> = 
         fold (fun acc k v -> acc |> (numItems k acc |> max v |> set k)) s1 s2
-    let sum (R(s1: Map<'a,uint32>) : MultiSet<'a>) (s2 : MultiSet<'a>) : MultiSet<'b> =  
+    let sum (R(s1: Map<'a,uint32>) : MultiSet<'a>) (s2 : MultiSet<'a>) : MultiSet<'a> =  
         Map.map (fun k v -> (numItems k s2)+ v ) s1 |> R
     let subtract s1 s2 : MultiSet<'a> = 
         fold (fun acc k v ->  remove k v acc) s1 s2
