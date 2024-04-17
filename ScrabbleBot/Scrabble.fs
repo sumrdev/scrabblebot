@@ -7,6 +7,8 @@ open System.IO
 
 open ScrabbleUtil.DebugPrint
 
+open MultiSet
+
 // TODO: The RegEx module is only used to parse human input. It is not used for the final product.
 
 module RegEx =
@@ -81,10 +83,13 @@ module Scrabble =
            // debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
-            | RCM (CMPlaySuccess(ms, points, newPieces)) ->
+            | RCM (CMPlaySuccess(move, points, newTiles)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
                 let st' = st // This state needs to be updated
+                
+                let st'.hand = MultiSet.add 1u 1u st'.hand
                 aux st'
+                
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
                 let st' = st // This state needs to be updated
