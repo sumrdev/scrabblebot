@@ -50,9 +50,18 @@ module State =
         hand          : MultiSet.MultiSet<uint32> // Multiset of piece ids and their counts, received from the server
         playerTurn    : uint32
         numPlayers    : uint32
+        playersAlive  : uint32 list
         }
 
-    let mkState b d pn h playerTurn numPlayers = {board = b; dict = d;  playerNumber = pn; hand = h; playerTurn = playerTurn; numPlayers = numPlayers}
+    let mkState b d pn h playerTurn numPlayers = {
+        board = b; 
+        dict = d;  
+        playerNumber = pn; 
+        hand = h; 
+        playerTurn = playerTurn; 
+        numPlayers = numPlayers
+        playersAlive = [1u..numPlayers] |> List.filter (fun x -> x <> pn)
+        }
 
     let board st         = st.board
     let dict st          = st.dict
@@ -62,11 +71,18 @@ module State =
 module Scrabble =
     open System.Threading
 
-    //playerids go from 1 to numPlayers
+    // Playerids go from 1 to numPlayers
+    // The ids in the list are what player turn it is
     let updatePlayerTurn (st : State.state) = 
-        let nextPlayer = (State.playerNumber st) + 1u
-        if nextPlayer > (st.numPlayers) then 1u
-        else nextPlayer
+        let rec aux (l : uint32 list) = 
+            match l with
+            | [] -> failwith "No players left"
+            | h::t -> if h = st.playerTurn then match t with | [] -> List.head l | _ -> List.head t else aux t
+        aux st.playersAlive
+    let playerForfeit (st : State.state) =
+        //remove player from playersAlive
+        let playersAlive' = List.filter (fun x -> x <> st.playerNumber) st.playersAlive
+        {st with playersAlive = playersAlive'}
     //get the move to play
     let rec getMove (st : State.state) =
         //pass for now
@@ -78,6 +94,9 @@ module Scrabble =
     let playGame cstream pieces (st : State.state) =
 
         let rec aux (st : State.state) =
+            //if not the player's turn, wait receive the message and call aux again
+            
+
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
@@ -109,16 +128,38 @@ module Scrabble =
                 
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                let st' = st // This state needs to be updated
+                let nextPlayer = updatePlayerTurn st
+
+                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
-                // This is only for your plays 
-
+                // This is only for your plays
+                // TODO maybe do something else than parse
+                send cstream SMPass
                 let st' = st // This state needs to be updated
                 aux st'
+            | RCM (CMPassed (pid)) -> 
+                // Passed. Update your state
+                let nextPlayer = updatePlayerTurn st
+                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
+                aux st'
+            | RCM (CMForfeit (pid)) -> 
+                // Forfeit. Update your state
+                let st' = playerForfeit st // This state needs to be updated
+                aux st'
+            // Other player changed there hand
+            | RCM (CMChange (playerId, numberOfTiles)) ->
+                let nextPlayer = updatePlayerTurn st
+                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
+                aux st'
+            | RCM (CMTimeout(playerId) ) ->
+                // Player timed out could be me
+                let nextPlayer = updatePlayerTurn st
+                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
+                aux st'
+            
             | RCM (CMGameOver _) -> ()
-            | RCM (CMPassed (pid)) -> aux st
             | RCM a ->
                     forcePrint (sprintf "FAILURE!! not implemented: %A\n" a)
                     failwith (sprintf "not implemented: %A" a)
