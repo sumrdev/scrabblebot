@@ -100,7 +100,7 @@ module internal Eval
         | TT -> ret true
         | FF -> ret false
 
-        | AEq (a, b) -> ret ((arithEval a) = (arithEval b))
+        | AEq (a, b) -> binop ( = ) (arithEval a) (arithEval b)
         | ALt (a, b) -> binop ( < ) (arithEval a) (arithEval b)
 
         | Not a -> boolEval a >>= fun x -> ret (not x)
@@ -155,18 +155,15 @@ module internal Eval
 
     type word = (char * int) list
     type squareFun = word -> int -> int -> Result<int, Error>
+    type coord = int * int
+    type boardFun = coord -> Result<squareFun option, Error> 
 
-    let stmntToSquareFun (stm: stm) : squareFun = 
+    let stmntToSquareFun (stm: stm) = 
         fun word pos acc ->
             stmntEval stm >>>= lookup "_result_" |> 
             evalSM (mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] word ["_pos_";"_acc_";"_result_"])
     
-
-    type coord = int * int
-
-    type boardFun = coord -> Result<squareFun option, Error> 
-
-    let stmntToBoardFun (stm: stm) (squares : Map<int, squareFun>): boardFun  = 
+    let stmntToBoardFun (stm: stm) squares  = 
         fun ((x, y): coord) ->
             stmntEval stm >>>= lookup "_result_" >>= (fun id -> ret (Map.tryFind id squares)) |> 
             evalSM (mkState [("_x_", x); ("_y_", y); ("_result_", 0)] [] ["_x_"; "_y_"; "_result_"])

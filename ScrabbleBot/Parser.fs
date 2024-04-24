@@ -48,8 +48,12 @@ module internal Parser
     let psquarebrackets p =  pchar '[' >*>. p .>*> pchar ']'
     let psinglequotes p =  pchar ''' >>. p .>> pchar '''
     let charListToString charList = charList |> Array.ofList |> System.String
-    let pid = pletter <|> pchar '_' .>>. many (pletter <|> palphanumeric) |>> fun ((a, b)) -> a::b |> charListToString
-
+    let pid = 
+        let firstChar = pletter <|> pchar '_'
+        let rest = many (palphanumeric <|> pchar '_')
+        //convert the char list to a string
+        firstChar .>>. rest |>> (fun (c, cs) -> c::cs |> List.toArray |> System.String)
+    
     let binop op a b = a .>*> op .>*>. b
 
     let TermParse, tref = createParserForwardedToRef<aExp>()
@@ -88,11 +92,6 @@ module internal Parser
     
     do cref := choice [toUpperParse; toLowerParse; intToCharParse; charValueParse; CParse]
 
-    let BexpParse = pstring "not implemented"
-
-    let stmParse = pstring "not implemented"
-
-    (* The rest of your parser goes here *)
     type word   = (char * int) list
     type squareFun = word -> int -> int -> Result<int, Error>
     type square = Map<int, squareFun>
@@ -104,6 +103,59 @@ module internal Parser
         defaultSquare : square
         squares       : boardFun2
     }
+
+    let BTermParse, btref = createParserForwardedToRef<bExp>()
+    let BProdParse, bpref = createParserForwardedToRef<bExp>()
+    let BAtomParse, baref = createParserForwardedToRef<bExp>()
+
+    let BexpParse = BTermParse
+
+    let AndParse = binop (pstring "/\\") BProdParse BTermParse <?> "And" |>> fun (a, b) -> a .&&. b
+    let OrParse = binop (pstring "\\/") BProdParse BTermParse <?> "Or" |>> fun (a, b) -> a .||. b
+    btref := choice [AndParse; OrParse; BProdParse]
+
+    let EqParse = binop (pchar '=') AexpParse AexpParse <?> "Eq" |>> fun (a, b) -> a .=. b
+    let NotEqParse = binop (pstring "<>") AexpParse AexpParse <?> "Not Eq" |>> fun (a, b) -> a .<>. b
+    let LessThanParse = binop (pchar '<') AexpParse AexpParse <?> "Less than" |>> fun (a, b) -> a .<. b
+    let LessThanOrEqParse = binop (pstring "<=") AexpParse AexpParse <?> "Less than or equal" |>> fun (a, b) -> a .<=. b
+    let GreaterThanParse = binop (pchar '>') AexpParse AexpParse <?> "Greater than" |>> fun (a, b) -> a .>. b
+    let GreaterThanOrEqParse = binop (pstring ">=") AexpParse AexpParse <?> "Greater than or equal" |>> fun (a, b) -> a .>=. b
+    bpref := choice [EqParse; NotEqParse; LessThanParse; LessThanOrEqParse; GreaterThanParse; GreaterThanOrEqParse; BAtomParse]
+
+    let BNegParse = pchar '~' >*>. BTermParse <?> "Neq" |>> Not
+    let IsLetterParse = pIsLetter >*>. parenthesise CexpParse <?> "IsLetter" |>> IsLetter
+    let IsVowelParse = pIsVowel >*>. parenthesise CexpParse <?> "IsVowel" |>> IsVowel
+    let IsDigitParse = pIsDigit >*>. parenthesise CexpParse <?> "IsDigit" |>> IsDigit
+    let BTrueParse = pTrue <?> "True" |>> fun _ -> TT
+    let BFalseParse = pFalse <?> "False" |>> fun _ -> FF
+    let BParParse = parenthesise BexpParse
+    baref := choice [BNegParse; IsLetterParse; IsVowelParse; IsDigitParse; BTrueParse; BFalseParse; BParParse]
+
+
+    let stmParse, stmref = createParserForwardedToRef<stm>()
+    let stmAtomParse, stmAtomref = createParserForwardedToRef<stm>()
+
+    let stmntParse = stmParse
+
+    let declareParse = pdeclare >>. spaces1 >>. pid |>> Declare <?> "Declare"
+    let AssParse = binop (pstring ":=") pid AexpParse |>> Ass <?> "Ass"
+    let SeperatorParse = binop (pchar ';') stmAtomParse stmntParse |>> Seq <?> "Semicolon"
+    let IfThenElseParse = pif >*>. parenthesise BexpParse .>*> pthen .>*>. pcurlybrackets stmntParse .>*> pelse .>*>. pcurlybrackets stmntParse |>> fun ((a, b), c) -> ITE(a,b,c)
+    let IfThenParse = pif >*>. parenthesise BexpParse .>*> pthen .>*>. pcurlybrackets stmntParse |>> fun (a, b) -> ITE(a,b, Skip)
+    let WhileParse = pwhile >*>. parenthesise BexpParse .>*> pdo .>*>. pcurlybrackets stmntParse |>>  While
+
+    stmref := choice [ SeperatorParse; stmAtomParse ]
+    stmAtomref := choice [ declareParse; AssParse; WhileParse; IfThenElseParse; IfThenParse ]
+
+    let parseSquareProg (sqp: squareProg) = Map.map (fun k t -> run stmntParse t |> getSuccess |> stmntToSquareFun) sqp
     
-    // Default (unusable) board in case you are not implementing a parser for the DSL.
-    let mkBoard : boardProg -> board = fun _ -> {center = (0,0); defaultSquare = Map.empty; squares = fun _ -> Success (Some Map.empty)}
+    let parseBoardProg (s: string) (sqs: Map<int, square>) : boardFun2 =
+        printfn "%A" s 
+        let statement = (run stmntParse s |> getSuccess)
+        stmntToBoardFun statement sqs
+
+
+    let mkBoard (bp : boardProg) : board = 
+        let a: Map<int,square> = Map.map (fun k v -> parseSquareProg v) bp.squares
+        { center = bp.center; defaultSquare = Map.find bp.usedSquare a; squares = parseBoardProg bp.prog a }
+
