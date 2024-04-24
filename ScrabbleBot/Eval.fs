@@ -120,7 +120,18 @@ module internal Eval
     | ITE of bExp * stm * stm (* if-then-else statement *)
     | While of bExp * stm     (* while statement *)
 
-    let rec stmntEval stmnt : SM<unit> = failwith "Not implemented"
+    let rec stmntEval stmnt : SM<unit> = 
+        match stmnt with
+        | Declare s -> declare s
+        | Ass(s, aexp) -> arithEval aexp >>= update s
+
+        | Skip -> ret ()
+        | Seq (a, b) -> stmntEval a >>>= stmntEval b
+
+        | ITE (bexp, a, b) -> boolEval bexp >>= fun res -> if res then stmntEval a else stmntEval b
+        
+        | While  (bexp, a) -> boolEval bexp >>= fun res -> ret (while (res) do stmntEval a |> ignore)
+
 
 (* Part 3 (Optional) *)
 
@@ -145,14 +156,20 @@ module internal Eval
     type word = (char * int) list
     type squareFun = word -> int -> int -> Result<int, Error>
 
-    let stmntToSquareFun stm = failwith "Not implemented"
-
+    let stmntToSquareFun (stm: stm) : squareFun = 
+        fun word pos acc ->
+            stmntEval stm >>>= lookup "_result_" |> 
+            evalSM (mkState [("_pos_", pos); ("_acc_", acc); ("_result_", 0)] word ["_pos_";"_acc_";"_result_"])
+    
 
     type coord = int * int
 
     type boardFun = coord -> Result<squareFun option, Error> 
 
-    let stmntToBoardFun stm m = failwith "Not implemented"
+    let stmntToBoardFun (stm: stm) (squares : Map<int, squareFun>): boardFun  = 
+        fun ((x, y): coord) ->
+            stmntEval stm >>>= lookup "_result_" >>= (fun id -> ret (Map.tryFind id squares)) |> 
+            evalSM (mkState [("_x_", x); ("_y_", y); ("_result_", 0)] [] ["_x_"; "_y_"; "_result_"])
 
     type board = {
         center        : coord
@@ -160,4 +177,7 @@ module internal Eval
         squares       : boardFun
     }
 
-    let mkBoard c defaultSq boardStmnt ids = failwith "Not implemented"
+    let boardFrom center defaultSquare squares = {center = center; defaultSquare = defaultSquare; squares = squares}
+
+    let mkBoard (c:coord) (x:int) (boardStmnt:stm) ids = 
+        (stmntToBoardFun boardStmnt ids) |> boardFrom c (Map.find x ids)
