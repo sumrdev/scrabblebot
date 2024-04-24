@@ -7,8 +7,6 @@ open System.IO
 
 open ScrabbleUtil.DebugPrint
 
-open MultiSet
-
 // TODO: The RegEx module is only used to parse human input. It is not used for the final product.
 
 module RegEx =
