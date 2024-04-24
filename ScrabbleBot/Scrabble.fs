@@ -70,7 +70,6 @@ module State =
 
 module Scrabble =
     open System.Threading
-    open Trie
     //list with legal moves
     let legalMoves = []
     //best move so far should be a index in legalMoves
@@ -118,13 +117,8 @@ module Scrabble =
     //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
     let legalMove (word) =
         //calculate the score of the move and add it to the list of legal moves then check if it is the best move so far and if so, save it to bestmove
+        failwith "Not implemented"
 
-        
-    let rec extendRight partialWord (node: Trie) (board: Parser.board) (square: Parser.square ) =
-        failwith "Not implemented"
-    
-    let rec leftPart (partialWord: string) (node: Trie) (limit: int) =
-        failwith "Not implemented"
         
 
 
