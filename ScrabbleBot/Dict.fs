@@ -1,12 +1,12 @@
-module internal Trie
-    type Trie = 
-    | Node of bool * Map<char, Trie>
+module internal Dict
+    type Dict = 
+    | Node of bool * Map<char, Dict>
 
     let empty = Node(false, Map.empty)
 
-    let add (word: string) (trie: Trie) = 
-        let rec add' (word: char list) (trie: Trie) = 
-            match word, trie with
+    let insert (word: string) (dict: Dict) = 
+        let rec add' (word: char list) (dict: Dict) = 
+            match word, dict with
             // If no more chars - replace the node with the same children but isWord = true
             | [], Node(_, children) -> Node(true, children)
             // If there are chars left - add the first char to the children
@@ -20,11 +20,11 @@ module internal Trie
                 let newChild = add' cs child
                 // Add the new child to the children
                 Node(isWord, children.Add(c, newChild))
-        add' (word |> Seq.toList ) trie
+        add' (word |> Seq.toList ) dict
 
-    let contains (word: string) (trie: Trie) =
-        let rec contains' (word: char list) (trie: Trie) = 
-            match word, trie with
+    let lookup (word: string) (dict: Dict) =
+        let rec contains' (word: char list) (dict: Dict) = 
+            match word, dict with
             // If no more chars - return isWord
             | [], Node(isWord, _) -> isWord
             // If there are chars left - check if the first char is in the children
@@ -32,11 +32,11 @@ module internal Trie
                 match Map.tryFind c children with
                 | Some t -> contains' cs t
                 | None -> false
-        contains' (word |> Seq.toList) trie
+        contains' (word |> Seq.toList) dict
 
-    let is_prefix (word: string) (trie: Trie) = 
-        let rec prefix' (word: char list) (trie: Trie) = 
-            match word, trie with
+    let is_prefix (word: string) (dict: Dict) = 
+        let rec prefix' (word: char list) (dict: Dict) = 
+            match word, dict with
             // If no more chars - return true
             | [], _ -> true
             // If there are chars left - check if the first char is in the children
@@ -44,16 +44,27 @@ module internal Trie
                 match Map.tryFind c children with
                 | Some t -> prefix' cs t
                 | None -> false
-        prefix' (word |> Seq.toList) trie
+        prefix' (word |> Seq.toList) dict
 
-    let prefix (word: string) (trie: Trie) : Trie =
-        let rec prefix' (word: char list) (trie: Trie) = 
-            match word, trie with
-            // If no more chars - return the trie
-            | [], _ -> trie
+    let prefix (word: string) (dict: Dict) : Dict =
+        let rec prefix' (word: char list) (dict: Dict) = 
+            match word, dict with
+            // If no more chars - return the dict
+            | [], _ -> dict
             // If there are chars left - check if the first char is in the children
             | c::cs, Node(_, children) -> 
                 match Map.tryFind c children with
                 | Some t -> prefix' cs t
                 | None -> empty
-        prefix' (word |> Seq.toList) trie
+        prefix' (word |> Seq.toList) dict
+
+    // step returns a bool indicating if the current node is a word and the next node
+    let step (c: char) (dict: Dict) : bool * Dict =
+        // remember that the relevant boolean is in the child
+        match dict with
+        | Node(isWord, children) -> 
+            match Map.tryFind c children with
+            | Some t -> 
+                match t with
+                | Node(isWord, _) -> isWord, t
+            | None -> false, empty

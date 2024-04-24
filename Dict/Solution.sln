@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Trie", "Trie.fsproj", "{A1973405-152D-4E1C-A97D-5830559AEBEA}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Dict", "Dict.fsproj", "{A1973405-152D-4E1C-A97D-5830559AEBEA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
