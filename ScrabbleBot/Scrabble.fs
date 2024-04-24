@@ -71,6 +71,51 @@ module Scrabble =
 
     // Playerids go from 1 to numPlayers
     // The ids in the list are what player turn it is
+
+// LeftPart(PartialWord, node N in dawg, limit) =
+//  ExtendRight (PartialWord, N, Anchorsquare)
+//  if limit > 0 then
+//      for each edge E out of N
+//          if the letter 1 labeling edge E is in our rack then
+//              remove a tile labeled 1 from the rack
+//              let N' be the node reached by following edge E
+//              Leftpart (PartialWord . 1, N', limit - 1 )
+//              put the tile 1 back into the rack
+
+
+// To generate all moves from Anchorsquare, assuming
+// that there are k non-anchor squares to the left of it, we
+// call
+// Leftpart("", root of dawg, k) 
+
+// ExtendRight (PartialWord , node N in dawg , square) =
+//  if square is vacant then 
+//      If N is a terminal node then
+//          //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
+//          LegalMove (PartialWord) 
+//      for each edge E out of N
+//         if the letter 1 labeling edge E is in the square then 
+//             and I is in the cross-check set of square then
+//               remove a tile 1 from the rack
+//             let N' be the node reached by following edge E
+//             let next-square be the square to the right of square
+//             ExtendRight (PartialWord - 1, N', next-square)
+//             put the tile i back into the rack  
+//         else
+//             let 1 be the letter occupying square
+//             if N has an edge labeled by 1 that leads to some node N' then 
+//                let next-square be the square to the right of square
+//                ExtendRight (PartialWord . 1, N', next-square)
+
+    let rec ExtendRight (PartialWord, node N , square) =
+        
+        
+
+    //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
+    let legalMove (PartialWord) =
+        failwith "Not implemented"
+
+
     let updatePlayerTurn (st : State.state) = 
         let rec aux (l : uint32 list) = 
             match l with
