@@ -49,16 +49,18 @@ module State =
         playerTurn    : uint32
         numPlayers    : uint32
         playersAlive  : uint32 list
+        tiles         : Map<uint32, tile>
         }
 
-    let mkState b d pn h playerTurn numPlayers = {
+    let mkState b d pn h playerTurn numPlayers  t = {
         board = b; 
         dict = d;  
         playerNumber = pn; 
         hand = h; 
         playerTurn = playerTurn; 
-        numPlayers = numPlayers
+        numPlayers = numPlayers;
         playersAlive = [1u..numPlayers] |> List.filter (fun x -> x <> pn)
+        tiles = t;
         }
 
     let board st         = st.board
@@ -68,11 +70,16 @@ module State =
 
 module Scrabble =
     open System.Threading
-
+    open Trie
+    //list with legal moves
+    let legalMoves = []
+    //best move so far should be a index in legalMoves
+    let bestMove = 0
+    
     // Playerids go from 1 to numPlayers
     // The ids in the list are what player turn it is
 
-// LeftPart(PartialWord, node N in dawg, limit) =
+// LeftPart(PartialWord, node N in trie, limit) =
 //  ExtendRight (PartialWord, N, Anchorsquare)
 //  if limit > 0 then
 //      for each edge E out of N
@@ -88,7 +95,7 @@ module Scrabble =
 // call
 // Leftpart("", root of dawg, k) 
 
-// ExtendRight (PartialWord , node N in dawg , square) =
+// ExtendRight (PartialWord , node N in trie , square) =
 //  if square is vacant then 
 //      If N is a terminal node then
 //          //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
@@ -107,16 +114,24 @@ module Scrabble =
 //                let next-square be the square to the right of square
 //                ExtendRight (PartialWord . 1, N', next-square)
 
-    let rec ExtendRight (PartialWord, node N , square) =
-        
-        
 
     //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
-    let legalMove (PartialWord) =
+    let legalMove (word) =
+        //calculate the score of the move and add it to the list of legal moves then check if it is the best move so far and if so, save it to bestmove
+
+        
+    let rec extendRight partialWord (node: Trie) (board: Parser.board) (square: Parser.square ) =
         failwith "Not implemented"
+    
+    let rec leftPart (partialWord: string) (node: Trie) (limit: int) =
+        failwith "Not implemented"
+        
+
 
 
     let updatePlayerTurn (st : State.state) = 
+        //clear the legalmoves list when player turn changes
+        legalMoves = []
         let rec aux (l : uint32 list) = 
             match l with
             | [] -> failwith "No players left"
@@ -235,5 +250,5 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet playerTurn numPlayers)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet playerTurn numPlayers tiles )
         
