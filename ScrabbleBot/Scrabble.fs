@@ -95,7 +95,6 @@ module Scrabble =
     let rec getMove (st : State.state) =
         //pass for now
         // convert set to list to string then forcePrint
-        forcePrint (st.hand |> MultiSet.toList |> List.map (fun x -> x.ToString()) |> String.concat " ")
         SMPass
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
         failwith "Not implemented"
