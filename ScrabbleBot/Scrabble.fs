@@ -59,7 +59,7 @@ module State =
         hand = h; 
         playerTurn = playerTurn; 
         numPlayers = numPlayers;
-        playersAlive = [1u..numPlayers] |> List.filter (fun x -> x <> pn)
+        playersAlive = [1u..numPlayers] 
         tiles = t;
         }
 
@@ -84,9 +84,14 @@ module Scrabble =
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
             match l with
-            | [] -> failwith "No players left"
-            | h::t -> if h = st.playerTurn then match t with | [] -> List.head l | _ -> List.head t else aux t
+            | [] -> forcePrint "No players left"; failwith "No players left"
+            | h::t when h = st.playerTurn -> 
+                match t with 
+                | [] -> List.head l 
+                | _ -> List.head t 
+            | h::t -> aux t
         aux st.playersAlive
+        
     let playerForfeit (st : State.state) =
         //remove player from playersAlive
         let playersAlive' = List.filter (fun x -> x <> st.playerNumber) st.playersAlive
@@ -104,18 +109,18 @@ module Scrabble =
 
         let rec aux (st : State.state) =
             //if not the player's turn, wait receive the message and call aux again
-            
-            if(st.playerTurn = st.playerNumber) then
+            forcePrint (sprintf "Player %d\n" st.playerNumber)
+            //if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-                let move = getMove st
+            let move = getMove st
                 
-                debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                send cstream (move)
+            forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            send cstream (move)
 
             let msg = recv cstream
-           // debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
@@ -140,9 +145,9 @@ module Scrabble =
                 (* Failed play. Update your state *)
                 // This is only for your plays
                 // TODO maybe do something else than parse
-                send cstream SMPass
-                let st' = st // This state needs to be updated
-                aux st'
+                //send cstream SMPass
+                //let st' = st // This state needs to be updated
+                aux st
             | RCM (CMPassed (pid)) -> 
                 // Passed. Update your state
                 let nextPlayer = updatePlayerTurn st
@@ -163,12 +168,12 @@ module Scrabble =
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             
-            | RCM (CMGameOver _) -> ()
+            | RCM (CMGameOver _) -> forcePrint (sprintf "Game Over\n")
             | RCM a ->
                     forcePrint (sprintf "FAILURE!! not implemented: %A\n" a)
                     failwith (sprintf "not implemented: %A" a)
-            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
-
+                    aux st
+            | RGPE err -> forcePrint (sprintf "Gameplay Error:\n%A" err); aux st
         aux st
 
     let startGame 

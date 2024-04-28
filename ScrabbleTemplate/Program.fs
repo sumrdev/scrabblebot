@@ -50,18 +50,17 @@ let main argv =
     let (dictionary, time) =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
     
-    let players = spawnMultiples "CoolestBotAround" dictionary CoolestBotAround.Scrabble.startGame 2
-    //let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
+    let players = spawnMultiples "CoolestBotAround" dictionary CoolestBotAround.Scrabble.startGame 1
+    let bots = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 1
 
-    // Uncomment this line to call your client
-    //  let players    = [
-    //     ("CoolestBotAround", CoolestBotAround.Scrabble.startGame),
-    //     ("CoolestBotAround", CoolestBotAround.Scrabble.startGame),
-    //     ("CoolestBotAround", CoolestBotAround.Scrabble.startGame)
-    // ] 
+    //Uncomment this line to call your client
+    (* let players    = [
+        ("OxyphenButazone", Oxyphenbutazone.Scrabble.startGame),
+        ("CoolestBotAround", CoolestBotAround.Scrabble.startGame)
+    ]  *)
 
     do ScrabbleServer.Comm.startGame 
-          board dictionary handSize timeout tiles seed port players
+          board dictionary handSize timeout tiles seed port (players@bots)
     
     ScrabbleUtil.DebugPrint.forcePrint ("Server has terminated. Press Enter to exit program.\n")
     System.Console.ReadLine () |> ignore
