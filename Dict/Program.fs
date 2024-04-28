@@ -1,10 +1,19 @@
-﻿open System.IO
-type Dict = 
+﻿type Dict = 
 | Node of bool * Map<char, Dict>
 
-let empty = Node(false, Map.empty)
+let empty : unit -> Dict = fun () -> Node(false, Map.empty)
 
-let add (word: string) (dict: Dict) = 
+let permutations (word: string) : char list list  =
+    let list = [1 .. word.Length]
+    let rec permute (word: char list) : char list list= 
+        List.fold (
+            fun acc i -> 
+                ((word.[i .. (word.Length)] |> List.rev )  @ ['#']  @ word.[0..i-1] |> List.rev ) :: acc)
+            []
+            list
+    permute (word |> Seq.toList)
+
+let insert (word: string) (dict: Dict) = 
     let rec add' (word: char list) (dict: Dict) = 
         match word, dict with
         // If no more chars - replace the node with the same children but isWord = true
@@ -15,68 +24,48 @@ let add (word: string) (dict: Dict) =
                 // If there is already a child with the same char - use it
                 match Map.tryFind c children with
                 | Some t -> t
-                | None -> empty
+                | None -> empty ()
             // Add the rest of the word to the child recursively
             let newChild = add' cs child
             // Add the new child to the children
             Node(isWord, children.Add(c, newChild))
-    add' (word |> Seq.toList ) dict
+    //add the permutations of the word to the dictionary
+    permutations word |> List.fold (fun acc p -> add' p acc) dict
 
-let contains (word: string) (dict: Dict) =
-    let rec contains' (word: char list) (dict: Dict) = 
-        match word, dict with
-        // If no more chars - return isWord
-        | [], Node(isWord, _) -> isWord
-        // If there are chars left - check if the first char is in the children
-        | c::cs, Node(_, children) -> 
-            match Map.tryFind c children with
-            | Some t -> contains' cs t
-            | None -> false
-    contains' (word |> Seq.toList) dict
-
-let is_prefix (word: string) (dict: Dict) = 
-    let rec prefix' (word: char list) (dict: Dict) = 
-        match word, dict with
-        // If no more chars - return true
-        | [], _ -> true
-        // If there are chars left - check if the first char is in the children
-        | c::cs, Node(_, children) -> 
-            match Map.tryFind c children with
-            | Some t -> prefix' cs t
-            | None -> false
-    prefix' (word |> Seq.toList) dict
-
-let prefix (word: string) (dict: Dict) : Dict =
-    let rec prefix' (word: char list) (dict: Dict) = 
-        match word, dict with
-        // If no more chars - return the dict
-        | [], _ -> dict
-        // If there are chars left - check if the first char is in the children
-        | c::cs, Node(_, children) -> 
-            match Map.tryFind c children with
-            | Some t -> prefix' cs t
-            | None -> empty
-    prefix' (word |> Seq.toList) dict
-
-// step returns a bool indicating if the current node is a word and the next node
 let step (c: char) (dict: Dict) : (bool * Dict) option =
-    // remember that the relevant boolean is in the child
-        match dict with
-        | Node(isWord, children) -> 
-            match Map.tryFind c children with
-            | Some t -> 
-                match t with
-                | Node(isWord, _) -> Some(isWord, t)
-            | None -> None
+    match dict with
+    | Node(isWord, children) -> 
+        match Map.tryFind c children with
+        | Some t -> 
+            match t with
+            | Node(isWord, _) -> Some(isWord, t)
+        | None -> None
+let reverse (dict: Dict) : (bool * Dict) option = 
+    match dict with
+    | Node(isWord, children) -> 
+        match Map.tryFind '#' children with
+        | Some t -> 
+            match t with
+            | Node(isWord, _) -> Some(isWord, t)
+        | None -> None
 
-//tests
-let dict = 
-    File.ReadAllLines("English.txt")
-    |> Seq.fold (fun dict word -> add word dict) empty  
+let lookup (word: string) (dict: Dict) =
+    let rec lookup' (word: char list) (dict: Dict) = 
+        match word, dict with
+        | [], Node(isWord, _) -> isWord
+        | c::cs, dict -> 
+            match step c dict with
+            | Some(_, next) -> lookup' cs next
+            | None -> 
+                match reverse dict with
+                | Some(_, next) -> lookup' word next
+                | None -> false
+    lookup' (word |> Seq.toList) dict
+let dict = empty ()
+let dict2 = insert "hello" dict
 
-// File.ReadAllLines("English.txt")
-// |> Seq.iter (fun word -> printfn "%s: %b" word (contains word dict))
+let test1 = lookup "hello" dict2
 
-// ["HELLO"; "ASDF"; "WORL"; "WORLDLY"; "WORLDLYNESS"; "WORLDLYNESSES"]
-// |> Seq.iter (fun word -> printfn "%s: %b" word (contains word dict))
+printfn "%A" test1
+
 

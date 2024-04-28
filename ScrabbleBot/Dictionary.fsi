@@ -7,8 +7,6 @@ module Dictionary
 
     val lookup : string -> Dict -> bool
 
-    val is_prefix : string -> Dict -> bool
-
-    val prefix : string -> Dict -> Dict
-
     val step : char -> Dict -> (bool * Dict ) option
+
+    val reverse : Dict -> (bool * Dict ) option
