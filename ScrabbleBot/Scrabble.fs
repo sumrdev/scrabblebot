@@ -87,7 +87,7 @@ module Scrabble =
             | [] -> failwith "No players left"; failwith "No players left"
             | h::t when h=st.playerTurn -> 
                 match t with 
-                | [] -> List.head l 
+                | [] -> List.head st.playersAlive
                 | _ -> List.head t
             | _::t -> aux t
         aux st.playersAlive
