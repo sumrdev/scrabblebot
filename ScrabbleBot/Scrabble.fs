@@ -50,7 +50,7 @@ module State =
         numPlayers    : uint32
         playersAlive  : uint32 list
         tiles         : Map<uint32, tile>
-        }
+    }
 
     let mkState b d pn h playerTurn numPlayers  t = {
         board = b; 
@@ -61,7 +61,7 @@ module State =
         numPlayers = numPlayers;
         playersAlive = [1u..numPlayers] 
         tiles = t;
-        }
+    }
 
     let board st         = st.board
     let dict st          = st.dict
@@ -84,12 +84,12 @@ module Scrabble =
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
             match l with
-            | [] -> forcePrint "No players left"; failwith "No players left"
-            | h::t when h = st.playerTurn -> 
+            | [] -> failwith "No players left"; failwith "No players left"
+            | h::t when h=st.playerTurn -> 
                 match t with 
                 | [] -> List.head l 
-                | _ -> List.head t 
-            | h::t -> aux t
+                | _ -> List.head t
+            | _::t -> aux t
         aux st.playersAlive
         
     let playerForfeit (st : State.state) =
@@ -111,9 +111,10 @@ module Scrabble =
             //if not the player's turn, wait receive the message and call aux again
             forcePrint (sprintf "Player %d\n" st.playerNumber)
             //if(st.playerTurn = st.playerNumber) then
+            if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             let move = getMove st
                 
             forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -124,6 +125,7 @@ module Scrabble =
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
+                forcePrint (sprintf "Successful play! Points: %d\n" points)   
                 Printf.printf "Successful play! Points: %d\n" points
                 let nextPlayer = updatePlayerTurn st
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
@@ -137,11 +139,13 @@ module Scrabble =
                 
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
+                forcePrint (sprintf "Player %d played a word! Points: %d\n" pid points)
                 let nextPlayer = updatePlayerTurn st
 
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
+                forcePrint (sprintf "Player %d failed to play a word!\n" pid)
                 (* Failed play. Update your state *)
                 // This is only for your plays
                 // TODO maybe do something else than parse
@@ -150,10 +154,12 @@ module Scrabble =
                 aux st
             | RCM (CMPassed (pid)) -> 
                 // Passed. Update your state
+                forcePrint (sprintf "Player %d passed!\n" pid)
                 let nextPlayer = updatePlayerTurn st
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             | RCM (CMForfeit (pid)) -> 
+                forcePrint (sprintf "Player %d forfeited!\n" pid)
                 // Forfeit. Update your state
                 let st' = playerForfeit st // This state needs to be updated
                 aux st'

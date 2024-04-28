@@ -42,13 +42,7 @@ module Dictionary
                 | Node(isWord, _) -> Some(isWord, t)
             | None -> None
     let reverse (dict: Dict) : (bool * Dict) option = 
-        match dict with
-        | Node(isWord, children) -> 
-            match Map.tryFind '#' children with
-            | Some t -> 
-                match t with
-                | Node(isWord, _) -> Some(isWord, t)
-            | None -> None
+        step '#' dict
 
     let lookup (word: string) (dict: Dict) =
         let rec lookup' (word: char list) (dict: Dict) = 
