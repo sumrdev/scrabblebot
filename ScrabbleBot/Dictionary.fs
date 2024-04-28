@@ -1,8 +1,8 @@
-module internal Dict
+module Dictionary
     type Dict = 
     | Node of bool * Map<char, Dict>
 
-    let empty = Node(false, Map.empty)
+    let empty : unit -> Dict = fun () -> Node(false, Map.empty)
 
     let insert (word: string) (dict: Dict) = 
         let rec add' (word: char list) (dict: Dict) = 
@@ -15,7 +15,7 @@ module internal Dict
                     // If there is already a child with the same char - use it
                     match Map.tryFind c children with
                     | Some t -> t
-                    | None -> empty
+                    | None -> empty ()
                 // Add the rest of the word to the child recursively
                 let newChild = add' cs child
                 // Add the new child to the children
@@ -55,16 +55,16 @@ module internal Dict
             | c::cs, Node(_, children) -> 
                 match Map.tryFind c children with
                 | Some t -> prefix' cs t
-                | None -> empty
+                | None -> empty ()
         prefix' (word |> Seq.toList) dict
 
     // step returns a bool indicating if the current node is a word and the next node
-    let step (c: char) (dict: Dict) : bool * Dict =
+    let step (c: char) (dict: Dict) : (bool * Dict) option =
         // remember that the relevant boolean is in the child
         match dict with
         | Node(isWord, children) -> 
             match Map.tryFind c children with
             | Some t -> 
                 match t with
-                | Node(isWord, _) -> isWord, t
-            | None -> false, empty
+                | Node(isWord, _) -> Some(isWord, t)
+            | None -> None

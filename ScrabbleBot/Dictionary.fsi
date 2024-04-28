@@ -1,9 +1,7 @@
-module internal Dict
+module Dictionary
     
-    type Dict =
-        | Node of bool * Map<char, Dict>
-
-    val empty : Dict
+    type Dict
+    val empty : unit -> Dict
 
     val insert : string -> Dict -> Dict
 
@@ -13,4 +11,4 @@ module internal Dict
 
     val prefix : string -> Dict -> Dict
 
-    val step : char -> Dict -> bool * Dict 
+    val step : char -> Dict -> (bool * Dict ) option

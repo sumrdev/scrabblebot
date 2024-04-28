@@ -7,13 +7,13 @@
     <Compile Include="MultiSet.fs" />
     <Compile Include="FParsecLight.fsi" />
     <Compile Include="FParsecLight.fs" />
+    <Compile Include="Dictionary.fsi" />
+    <Compile Include="Dictionary.fs" />
     <Compile Include="StateMonad.fsi" />
     <Compile Include="StateMonad.fs" />
     <Compile Include="Eval.fs" />
     <Compile Include="Parser.fsi" />
     <Compile Include="Parser.fs" />
-    <Compile Include="Dict.fsi" />
-    <Compile Include="Dict.fs" />
     <Compile Include="Scrabble.fsi" />
     <Compile Include="Scrabble.fs" />
   </ItemGroup>
