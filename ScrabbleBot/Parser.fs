@@ -150,7 +150,7 @@ module internal Parser
     let parseSquareProg (sqp: squareProg) = Map.map (fun k t -> run stmntParse t |> getSuccess |> stmntToSquareFun) sqp
     
     let parseBoardProg (s: string) (sqs: Map<int, square>) : boardFun2 =
-        printfn "%A" s 
+        // printfn "%A" s 
         let statement = (run stmntParse s |> getSuccess)
         stmntToBoardFun statement sqs
 

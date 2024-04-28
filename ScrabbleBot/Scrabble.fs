@@ -94,6 +94,8 @@ module Scrabble =
     //get the move to play
     let rec getMove (st : State.state) =
         //pass for now
+        // convert set to list to string then forcePrint
+        forcePrint (st.hand |> MultiSet.toList |> List.map (fun x -> x.ToString()) |> String.concat " ")
         SMPass
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
         failwith "Not implemented"
@@ -105,9 +107,9 @@ module Scrabble =
             //if not the player's turn, wait receive the message and call aux again
             
             if(st.playerTurn = st.playerNumber) then
-                Print.printHand pieces (State.hand st)
+                // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+                // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
                 let move = getMove st
                 
                 debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.

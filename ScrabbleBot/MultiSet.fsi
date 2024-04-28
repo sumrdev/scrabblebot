@@ -10,3 +10,4 @@ module internal MultiSet
     val remove: 'a -> uint32 -> MultiSet<'a> -> MultiSet<'a>
     val subtract: MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
     val union: MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
+    val toList: MultiSet<'a> -> 'a list
