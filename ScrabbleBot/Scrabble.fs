@@ -96,32 +96,93 @@ module Scrabble =
         //remove player from playersAlive
         let playersAlive' = List.filter (fun x -> x <> st.playerNumber) st.playersAlive
         {st with playersAlive = playersAlive'}
+
+    let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<tile> =
+        MultiSet.toList hand |> List.map (fun x -> Map.find x tiles)
+
     //get the move to play
     let rec getMove (st : State.state) =
-        //pass for now
-        // convert set to list to string then forcePrint
+        let tilesWithWildcars = handToTiles st.hand st.tiles
+
+        // Ignore wildcards
+        let tiles = tilesWithWildcars |> List.map (fun x -> Set.toSeq x |> Seq.head) 
+
+        let mutable words = []
+        let applyTile (tl: char*int) (dict: Dictionary.Dict) : (Dictionary.Dict*(char*int)) option =
+            let cur = Dictionary.step (fst tl) dict
+            forcePrint (sprintf "Apply: %A\n" tl)
+            match cur with
+            | Some (_, d) -> 
+                let test = Dictionary.step '#' d
+                match test with
+                | Some (true, _) -> 
+                    words <- words@[tl]
+                    forcePrint (sprintf "Words: %A\n" words)
+                    Some (d, tl)
+                | _ -> Some (d, tl)
+            | None -> None
+        
+        let rec applyTileList (tiles: (char*int) list) (d: Dictionary.Dict) =
+            List.map (fun x -> 
+                let newList = List.filter (fun y -> y <> x) tiles
+                forcePrint (sprintf "NewList: %A\n" newList)
+                match newList with
+                | [] -> None
+                | _ ->  
+                    let d' = applyTile x d
+                    match d' with
+                    | Some (d', a) -> (applyTileList newList d')
+                ) tiles
+
+        //let d' = applyTileList tiles st.dict
+        forcePrint (sprintf "Words: %A\n" words)
         SMPass
+        // Applies each char in tile to the dictionary and returns the accepted tiles which complete a word and the dictionaries which are still valid
+(*         let applyTile (tile: tile) (d: Dictionary.Dict): (tile option * List<Dictionary.Dict>) =
+             Set.fold (fun acc t -> 
+                    let accepted = fst acc
+                    let ds = snd acc
+                    let char = t |> fst
+                    let d' = Dictionary.step char d
+                    match d' with
+                    | Some (true, d'') -> 
+                        match accepted with
+                        | Some cur -> (Some(Set.add t cur), ds @ [d''])
+                        | None -> (Some (Set.ofList [t]), ds @ [d''])
+                    | Some (false, d'') ->
+                        (accepted, ds @ [d''])
+                    | None -> acc
+                )
+                (None, [])
+                tile  *)
+            
+(*         let rec exploreFrom head tiles = 
+            match tiles with
+            | [] -> []
+            | h::t -> 
+                let d = applyTile h st.dict
+                let t' = exploreFrom head tiles
+                
+        List.fold 
+        forcePrint (sprintf "Enter your move: ")
+        SMPass *)
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
         failwith "Not implemented"
 
 
     let playGame cstream pieces (st : State.state) =
-
         let rec aux (st : State.state) =
-            //if not the player's turn, wait receive the message and call aux again
-            forcePrint (sprintf "Player %d\n" st.playerNumber)
-            //if(st.playerTurn = st.playerNumber) then
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let move = getMove st
-                
-            forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (move)
+                let move = getMove st
+                //let move = SMPass
+                    
+                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                //send cstream (move)
 
             let msg = recv cstream
-            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
@@ -141,6 +202,7 @@ module Scrabble =
                 (* Successful play by other player. Update your state *)
                 forcePrint (sprintf "Player %d played a word! Points: %d\n" pid points)
                 let nextPlayer = updatePlayerTurn st
+                forcePrint (sprintf "NEW TURN IS: %d\n" nextPlayer)
 
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
@@ -201,8 +263,8 @@ module Scrabble =
                       timeout = %A\n\n" numPlayers playerNumber playerTurn hand timeout)
 
         //TODO: use a trie or gaddag
-        //let dict = dictf true // Uncomment if using a gaddag for your dictionary
-        let dict = dictf false // Uncomment if using a trie for your dictionary
+        let dict = dictf true // Uncomment if using a gaddag for your dictionary
+        //let dict = dictf false // Uncomment if using a trie for your dictionary
             
         let board = Parser.mkBoard boardP
                   
