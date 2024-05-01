@@ -50,6 +50,8 @@ module State =
         numPlayers    : uint32
         playersAlive  : uint32 list
         tiles         : Map<uint32, tile>
+        round         : uint32
+        playedTiles   : Map<coord, Map<uint32, tile>>
     }
 
     let mkState b d pn h playerTurn numPlayers  t = {
@@ -61,6 +63,8 @@ module State =
         numPlayers = numPlayers;
         playersAlive = [1u..numPlayers] 
         tiles = t;
+        round = 0u;
+        playedTiles = Map.empty
     }
 
     let board st         = st.board
@@ -97,20 +101,19 @@ module Scrabble =
         let playersAlive' = List.filter (fun x -> x <> st.playerNumber) st.playersAlive
         {st with playersAlive = playersAlive'}
 
-    let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<tile> =
-        MultiSet.toList hand |> List.map (fun x -> Map.find x tiles)
+    type word = (uint32 * (char * int)) list
 
-    type word = (char * int) list
+    let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<uint32 * tile> =
+        MultiSet.toList hand |> List.map (fun x -> (x, Map.find x tiles))
+    
+    let rec getFirstMove (st : State.state) =
+        let tilesWithWildcars: List<uint32 * tile> = handToTiles st.hand st.tiles
 
-    //get the move to play
-    let rec getMove (st : State.state) =
-        let tilesWithWildcars = handToTiles st.hand st.tiles
+        // TODO: not ignore wildcards
+        let tiles: word = tilesWithWildcars |> List.map (fun (id, x) -> (id, Set.toSeq x |> Seq.head)) 
 
-        // Ignore wildcards
-        let tiles = tilesWithWildcars |> List.map (fun x -> Set.toSeq x |> Seq.head) 
-
-        let applyTile (tl: char*int) (dict: Dictionary.Dict) currentWord : (Dictionary.Dict * bool) option =
-            let cur = Dictionary.step (fst tl) dict
+        let applyTile (tl: (uint32 * (char * int))) (dict: Dictionary.Dict) currentWord : (Dictionary.Dict * bool) option =
+            let cur = Dictionary.step (tl |> snd |> fst) dict
             match cur with
             | Some (_, d) -> 
                 let test = Dictionary.step '#' d
@@ -120,7 +123,7 @@ module Scrabble =
                 | _ -> Some (d, false)
             | None -> None
         
-        let rec applyTileList (tiles: (char*int) list) (d: Dictionary.Dict) (currentWord: word) (acc: word Set) : word Set  =
+        let rec applyTileList (tiles: (uint32 * (char * int)) list) (d: Dictionary.Dict) (currentWord: word) (acc: word Set) : word Set  =
             // Todo: stop passing word, to all recursive calls
             let res = List.map (fun x -> 
                 let newList = List.filter (fun y -> y <> x) tiles
@@ -140,8 +143,20 @@ module Scrabble =
         let help = applyTileList tiles st.dict [] Set.empty
         let words: word list = Set.toList help
         let reverse: word list = List.map (fun x -> List.rev x) words
-        let ordered: ((word list) * int) = (reverse, 0)
-        forcePrint (sprintf "Words: %A\n" reverse)
+        let getPoints (word: word) : int = List.fold (fun acc (_, (_, v)) -> acc + v) 0 word
+
+        let withPoints: (word * int) list = List.map (fun x -> (x, getPoints x)) reverse
+        let sorted: (word * int) list = List.sortBy (fun (x, k) -> -k) withPoints
+        let best: word =  fst (List.head sorted)
+
+        forcePrint (sprintf "Words: %A\n" best)
+        let move: (coord * (uint32 * (char * int))) list = List.mapi (fun i x -> ((i, 0), x)) best
+        SMPlay move
+
+    //get the move to play
+    let rec getMove (st : State.state) =
+        
+        getFirstMove st |> ignore
         SMPass
 
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
@@ -154,38 +169,9 @@ module Scrabble =
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
-                //let move = SMPass
-                let test = Dictionary.step 'S' st.dict  
-                match test with
-                | Some (_, dict) ->
-                    forcePrint (sprintf "START")
-                    let test = Dictionary.step 'W' dict
-                    match test with
-                    | Some (_, dict) -> 
-                        let test = Dictionary.step 'O' dict
-                        match test with
-                        | Some (_, dict) -> 
-                            let test = Dictionary.step 'R' dict
-                            match test with
-                            | Some (_, dict) ->
-                                let test = Dictionary.step 'G' dict
-                                match test with
-                                | Some (_, dict) ->  
-                                    let test = Dictionary.step '#' dict
-                                    match test with
-                                    | Some (isWord, dict) -> 
-                                        forcePrint (sprintf "IS WORD %b" isWord)
-                                        forcePrint (sprintf "IS WORD %b" isWord)
-                                        forcePrint (sprintf "IS WORD %b" isWord)
-                                        forcePrint (sprintf "IS WORD %b" isWord)
-                                        forcePrint (sprintf "IS WORD %b" isWord)
-                        "a"
-                |> ignore
                 
-                
-                let move = SMPass  
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                //send cstream (move)
+                send cstream (move)
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
