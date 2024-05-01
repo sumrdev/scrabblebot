@@ -10,12 +10,14 @@ module internal ScrabbleBot
         failwith "Not implemented"  *)
     type unplacedTile = uint32 * (char * int)
     type tileInstance = coord * unplacedTile
+    let mutable finalWords: list<list<tileInstance>> = []
     
     let recordPlay(word: tileInstance list) =
-        let word =  List.map (fun (coord, (id, (c, _))) -> c) word
-        let reversed = List.rev word
+        let letters =  List.map (fun (coord, (id, (c, _))) -> c) word
+        let reversed = List.rev letters
         let string = new string (reversed |> List.toArray)
         forcePrint (sprintf "Found valid word: %A\n"  string)
+        finalWords <- finalWords @ [word]
 
 
     let getcoord (pos: int) (anchor: coord) (vertical: bool) = 
@@ -56,7 +58,7 @@ module internal ScrabbleBot
                 match lookup newPos anchor playedTiles vertical with
                 | Some l -> true
                 | None -> 
-                    recordPlay newWord // record if no letter to the left
+                    recordPlay newWord  // record if no letter to the left
                     false
             | _ -> false
 
@@ -65,7 +67,7 @@ module internal ScrabbleBot
             match lookup position anchor playedTiles vertical with
             | Some l -> 
                 let (_, unplaced) = l
-                GoOn position unplaced word rack (Dictionary.step (getCharTile l) gaddag) gaddag anchor playedTiles vertical tiles
+                GoOn position unplaced word rack (Dictionary.step (getCharTile l) gaddag) gaddag anchor playedTiles vertical
             | None   -> 
                 let rackList = MultiSet.toList rack
                 match rackList |> List.isEmpty with
@@ -74,14 +76,14 @@ module internal ScrabbleBot
                     List.map (fun id -> 
                         let tileList = getTileList id tiles
                         List.map (fun (c: unplacedTile) ->
-                            GoOn position c word (removeFromRack id rack) (Dictionary.step (getChar c) gaddag) gaddag anchor playedTiles vertical tiles
+                            GoOn position c word (removeFromRack id rack) (Dictionary.step (getChar c) gaddag) gaddag anchor playedTiles vertical
                         ) tileList
                     ) rackList |> ignore
                     ()
                 | _ -> () // no letters on the rack
     
 
-        and GoOn (position: int) (letter: unplacedTile) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (newGaddag: (bool * Dictionary.Dict) option) (oldGaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord,tileInstance>) (vertical: bool) (tiles : Map<uint32, tile>) =
+        and GoOn (position: int) (letter: unplacedTile) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (newGaddag: (bool * Dictionary.Dict) option) (oldGaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord,tileInstance>) (vertical: bool) =
             match position <= 0 with
             | true -> 
                 let newCoord = getcoord position anchor vertical
@@ -106,10 +108,11 @@ module internal ScrabbleBot
                 let newWord = [(newCoord, letter)] @ word 
                 match newGaddag with
                 | Some (_, gaddag) -> 
-                    checkValidPlay (position+1) gaddag anchor playedTiles vertical |> ignore
+                    checkValidPlay (position+1) gaddag anchor playedTiles vertical newWord |> ignore
                     gen' (position + 1) newWord rack gaddag
                 | None -> ()
             
 
         gen' position word rack gaddag
+        finalWords
         

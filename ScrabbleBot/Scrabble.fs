@@ -158,10 +158,15 @@ module Scrabble =
 
     //get the move to play
     let rec getMove (st : State.state) =
-        let res = ScrabbleBot.gen 0 [] st.hand st.dict (0,0) st.playedTiles true st.tiles
-
+        let res: ScrabbleBot.tileInstance list list = ScrabbleBot.gen 0 [] st.hand st.dict (0,0) st.playedTiles true st.tiles
+        let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
+        let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
+        let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
+        let best: tileInstance list =  fst (List.head sorted)
+        forcePrint (sprintf "Best word is : %A\n" best)
+        SMPlay best
         //getFirstMove st |> ignore
-        SMPass
+        
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
         
@@ -175,13 +180,16 @@ module Scrabble =
 
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
+            let mutable count = 0 
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
                 
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                //send cstream (move)
+                if count < 2 then //shoudl stop for debug
+                    count <- count + 1
+                    send cstream move
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
