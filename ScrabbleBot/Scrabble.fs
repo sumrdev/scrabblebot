@@ -7,7 +7,9 @@ open System.IO
 
 open ScrabbleUtil.DebugPrint
 
+
 // TODO: The RegEx module is only used to parse human input. It is not used for the final product.
+type tileInstance = coord * (uint32 * (char * int))
 
 module RegEx =
     open System.Text.RegularExpressions
@@ -51,7 +53,7 @@ module State =
         playersAlive  : uint32 list
         tiles         : Map<uint32, tile>
         round         : uint32
-        playedTiles   : Map<coord, Map<uint32, tile>>
+        playedTiles   : Map<coord,tileInstance>
     }
 
     let mkState b d pn h playerTurn numPlayers  t = {
@@ -79,6 +81,7 @@ module Scrabble =
     //best move so far should be a index in legalMoves
     let bestMove = 0
     
+
     //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
     let legalMove (word) =
         //calculate the score of the move and add it to the list of legal moves then check if it is the best move so far and if so, save it to bestmove
@@ -159,8 +162,14 @@ module Scrabble =
         getFirstMove st |> ignore
         SMPass
 
-    let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
-        failwith "Not implemented"
+    let UpdateBoard (st : State.state) (move : list<tileInstance>) =
+        
+        let playedTiles = st.playedTiles
+        let playedTiles' = List.fold (fun acc m -> 
+            let coord, _ = m
+            Map.add coord m acc) playedTiles move
+        {st with playedTiles = playedTiles'}
+
 
 
     let playGame cstream pieces (st : State.state) =
@@ -187,17 +196,18 @@ module Scrabble =
                 let hand' = MultiSet.subtract (State.hand st) tilesUsed
                 let hand'' = MultiSet.union hand' tilesToBeAddedToHand
                 //TODO: update the board
-                let st' = {st with hand = hand'' ; playerTurn = nextPlayer}
-                aux st'
+                let st' = UpdateBoard st move
+                let st'' = {st' with hand = hand'' ; playerTurn = nextPlayer}
+                aux st''
                 
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
                 forcePrint (sprintf "Player %d played a word! Points: %d\n" pid points)
                 let nextPlayer = updatePlayerTurn st
                 forcePrint (sprintf "NEW TURN IS: %d\n" nextPlayer)
-
-                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
-                aux st'
+                let st' = UpdateBoard st ms
+                let st'' = {st' with playerTurn = nextPlayer} // This state needs to be updated
+                aux st''
             | RCM (CMPlayFailed (pid, ms)) ->
                 forcePrint (sprintf "Player %d failed to play a word!\n" pid)
                 (* Failed play. Update your state *)
