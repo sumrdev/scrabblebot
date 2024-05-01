@@ -50,6 +50,8 @@ module State =
         numPlayers    : uint32
         playersAlive  : uint32 list
         tiles         : Map<uint32, tile>
+        round         : uint32
+        playedTiles   : Map<coord, Map<uint32, tile>>
     }
 
     let mkState b d pn h playerTurn numPlayers  t = {
@@ -61,6 +63,8 @@ module State =
         numPlayers = numPlayers;
         playersAlive = [1u..numPlayers] 
         tiles = t;
+        round = 0u;
+        playedTiles = Map.empty
     }
 
     let board st         = st.board
@@ -96,32 +100,81 @@ module Scrabble =
         //remove player from playersAlive
         let playersAlive' = List.filter (fun x -> x <> st.playerNumber) st.playersAlive
         {st with playersAlive = playersAlive'}
+
+    type word = (uint32 * (char * int)) list
+
+    let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<uint32 * tile> =
+        MultiSet.toList hand |> List.map (fun x -> (x, Map.find x tiles))
+    
+    let rec getFirstMove (st : State.state) =
+        let tilesWithWildcars: List<uint32 * tile> = handToTiles st.hand st.tiles
+
+        // TODO: not ignore wildcards
+        let tiles: word = tilesWithWildcars |> List.map (fun (id, x) -> (id, Set.toSeq x |> Seq.head)) 
+
+        let applyTile (tl: (uint32 * (char * int))) (dict: Dictionary.Dict) currentWord : (Dictionary.Dict * bool) option =
+            let cur = Dictionary.step (tl |> snd |> fst) dict
+            match cur with
+            | Some (_, d) -> 
+                let test = Dictionary.step '#' d
+                match test with
+                | Some (true, _) -> 
+                    Some (d, true)
+                | _ -> Some (d, false)
+            | None -> None
+        
+        let rec applyTileList (tiles: (uint32 * (char * int)) list) (d: Dictionary.Dict) (currentWord: word) (acc: word Set) : word Set  =
+            // Todo: stop passing word, to all recursive calls
+            let res = List.map (fun x -> 
+                let newList = List.filter (fun y -> y <> x) tiles
+                if List.isEmpty newList then acc
+                else
+                    let d' = applyTile x d currentWord
+                    match d' with
+                    | Some (d', true) -> 
+                        applyTileList newList d' (currentWord@[x]) (Set.add (currentWord@[x]) acc);
+                    | Some (d', false) ->
+                        applyTileList newList d' (currentWord@[x]) acc;
+                    | None -> acc
+                )  
+            
+            Set.unionMany (res tiles)
+                   
+        let help = applyTileList tiles st.dict [] Set.empty
+        let words: word list = Set.toList help
+        let reverse: word list = List.map (fun x -> List.rev x) words
+        let getPoints (word: word) : int = List.fold (fun acc (_, (_, v)) -> acc + v) 0 word
+
+        let withPoints: (word * int) list = List.map (fun x -> (x, getPoints x)) reverse
+        let sorted: (word * int) list = List.sortBy (fun (x, k) -> -k) withPoints
+        let best: word =  fst (List.head sorted)
+
+        forcePrint (sprintf "Words: %A\n" best)
+        let move: (coord * (uint32 * (char * int))) list = List.mapi (fun i x -> ((i, 0), x)) best
+        SMPlay move
+
     //get the move to play
     let rec getMove (st : State.state) =
-        //pass for now
-        // convert set to list to string then forcePrint
+        
+        getFirstMove st |> ignore
         SMPass
+
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
         failwith "Not implemented"
 
 
     let playGame cstream pieces (st : State.state) =
-
         let rec aux (st : State.state) =
-            //if not the player's turn, wait receive the message and call aux again
-            forcePrint (sprintf "Player %d\n" st.playerNumber)
-            //if(st.playerTurn = st.playerNumber) then
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let move = getMove st
+                let move = getMove st
                 
-            forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (move)
+                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                send cstream (move)
 
             let msg = recv cstream
-            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
@@ -141,6 +194,7 @@ module Scrabble =
                 (* Successful play by other player. Update your state *)
                 forcePrint (sprintf "Player %d played a word! Points: %d\n" pid points)
                 let nextPlayer = updatePlayerTurn st
+                forcePrint (sprintf "NEW TURN IS: %d\n" nextPlayer)
 
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
@@ -201,8 +255,8 @@ module Scrabble =
                       timeout = %A\n\n" numPlayers playerNumber playerTurn hand timeout)
 
         //TODO: use a trie or gaddag
-        //let dict = dictf true // Uncomment if using a gaddag for your dictionary
-        let dict = dictf false // Uncomment if using a trie for your dictionary
+        let dict = dictf true // Uncomment if using a gaddag for your dictionary
+        //let dict = dictf false // Uncomment if using a trie for your dictionary
             
         let board = Parser.mkBoard boardP
                   
