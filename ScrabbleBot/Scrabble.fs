@@ -100,6 +100,8 @@ module Scrabble =
     let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<tile> =
         MultiSet.toList hand |> List.map (fun x -> Map.find x tiles)
 
+    type word = (char * int) list
+
     //get the move to play
     let rec getMove (st : State.state) =
         let tilesWithWildcars = handToTiles st.hand st.tiles
@@ -107,65 +109,41 @@ module Scrabble =
         // Ignore wildcards
         let tiles = tilesWithWildcars |> List.map (fun x -> Set.toSeq x |> Seq.head) 
 
-        let mutable words = []
-        let applyTile (tl: char*int) (dict: Dictionary.Dict) : (Dictionary.Dict*(char*int)) option =
+        let applyTile (tl: char*int) (dict: Dictionary.Dict) currentWord : (Dictionary.Dict * bool) option =
             let cur = Dictionary.step (fst tl) dict
-            forcePrint (sprintf "Apply: %A\n" tl)
             match cur with
             | Some (_, d) -> 
                 let test = Dictionary.step '#' d
                 match test with
                 | Some (true, _) -> 
-                    words <- words@[tl]
-                    forcePrint (sprintf "Words: %A\n" words)
-                    Some (d, tl)
-                | _ -> Some (d, tl)
+                    Some (d, true)
+                | _ -> Some (d, false)
             | None -> None
         
-        let rec applyTileList (tiles: (char*int) list) (d: Dictionary.Dict) =
-            List.map (fun x -> 
+        let rec applyTileList (tiles: (char*int) list) (d: Dictionary.Dict) (currentWord: word) (acc: word Set) : word Set  =
+            // Todo: stop passing word, to all recursive calls
+            let res = List.map (fun x -> 
                 let newList = List.filter (fun y -> y <> x) tiles
-                forcePrint (sprintf "NewList: %A\n" newList)
-                match newList with
-                | [] -> None
-                | _ ->  
-                    let d' = applyTile x d
+                if List.isEmpty newList then acc
+                else
+                    let d' = applyTile x d currentWord
                     match d' with
-                    | Some (d', a) -> (applyTileList newList d')
-                ) tiles
-
-        //let d' = applyTileList tiles st.dict
-        forcePrint (sprintf "Words: %A\n" words)
-        SMPass
-        // Applies each char in tile to the dictionary and returns the accepted tiles which complete a word and the dictionaries which are still valid
-(*         let applyTile (tile: tile) (d: Dictionary.Dict): (tile option * List<Dictionary.Dict>) =
-             Set.fold (fun acc t -> 
-                    let accepted = fst acc
-                    let ds = snd acc
-                    let char = t |> fst
-                    let d' = Dictionary.step char d
-                    match d' with
-                    | Some (true, d'') -> 
-                        match accepted with
-                        | Some cur -> (Some(Set.add t cur), ds @ [d''])
-                        | None -> (Some (Set.ofList [t]), ds @ [d''])
-                    | Some (false, d'') ->
-                        (accepted, ds @ [d''])
+                    | Some (d', true) -> 
+                        applyTileList newList d' (currentWord@[x]) (Set.add (currentWord@[x]) acc);
+                    | Some (d', false) ->
+                        applyTileList newList d' (currentWord@[x]) acc;
                     | None -> acc
-                )
-                (None, [])
-                tile  *)
+                )  
             
-(*         let rec exploreFrom head tiles = 
-            match tiles with
-            | [] -> []
-            | h::t -> 
-                let d = applyTile h st.dict
-                let t' = exploreFrom head tiles
-                
-        List.fold 
-        forcePrint (sprintf "Enter your move: ")
-        SMPass *)
+            Set.unionMany (res tiles)
+                   
+        let help = applyTileList tiles st.dict [] Set.empty
+        let words: word list = Set.toList help
+        let reverse: word list = List.map (fun x -> List.rev x) words
+        let ordered: ((word list) * int) = (reverse, 0)
+        forcePrint (sprintf "Words: %A\n" reverse)
+        SMPass
+
     let UpdateBoard (st : State.state) (move : list<coord * (uint32 * (char * int))>) =
         failwith "Not implemented"
 
@@ -177,7 +155,35 @@ module Scrabble =
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
                 //let move = SMPass
-                    
+                let test = Dictionary.step 'S' st.dict  
+                match test with
+                | Some (_, dict) ->
+                    forcePrint (sprintf "START")
+                    let test = Dictionary.step 'W' dict
+                    match test with
+                    | Some (_, dict) -> 
+                        let test = Dictionary.step 'O' dict
+                        match test with
+                        | Some (_, dict) -> 
+                            let test = Dictionary.step 'R' dict
+                            match test with
+                            | Some (_, dict) ->
+                                let test = Dictionary.step 'G' dict
+                                match test with
+                                | Some (_, dict) ->  
+                                    let test = Dictionary.step '#' dict
+                                    match test with
+                                    | Some (isWord, dict) -> 
+                                        forcePrint (sprintf "IS WORD %b" isWord)
+                                        forcePrint (sprintf "IS WORD %b" isWord)
+                                        forcePrint (sprintf "IS WORD %b" isWord)
+                                        forcePrint (sprintf "IS WORD %b" isWord)
+                                        forcePrint (sprintf "IS WORD %b" isWord)
+                        "a"
+                |> ignore
+                
+                
+                let move = SMPass  
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                 //send cstream (move)
 
