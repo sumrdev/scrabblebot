@@ -155,17 +155,30 @@ module Scrabble =
         forcePrint (sprintf "Words: %A\n" best)
         let move: (coord * (uint32 * (char * int))) list = List.mapi (fun i x -> ((i, 0), x)) best
         SMPlay move
-
+    
+    let genMoves (st : State.state) pos vertical: ScrabbleBot.tileInstance list list =
+        ScrabbleBot.gen 0 [] st.hand st.dict pos st.playedTiles vertical st.tiles
     //get the move to play
     let rec getMove (st : State.state) =
+        let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
+        let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         Print.printHand st.tiles st.hand
-        let res: ScrabbleBot.tileInstance list list = ScrabbleBot.gen 0 [] st.hand st.dict (0,0) st.playedTiles false st.tiles
+        let verticalMoves = List.map (fun x -> genMoves st x true) toCheckVertical
+        let horizontalMoves = List.map (fun x -> genMoves st x false) toCheckHorizontal
+        let allMoves = List.concat verticalMoves @ List.concat horizontalMoves
+        let res = 
+            match List.isEmpty allMoves  with
+            | false -> allMoves
+            | true ->  genMoves st (0, 0) true @ genMoves st (0, 0) false
+
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
+
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
         let best: tileInstance list =  fst (List.head sorted)
         forcePrint (sprintf "Best word is : %A\n" best)
         SMPlay best
+        
         //getFirstMove st |> ignore
         
 
@@ -187,10 +200,10 @@ module Scrabble =
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
                 
-                if count < 2 then //shoudl stop for debug
-                    forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                    count <- count + 1
-                    send cstream move
+                //if count < 2 then //shoudl stop for debug
+                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                count <- count + 1
+                send cstream move
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
