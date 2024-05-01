@@ -91,15 +91,12 @@ module internal ScrabbleBot
                 match newGaddag with
                 | Some (_, gaddag) -> 
                     checkValidPlay (position-1) gaddag anchor playedTiles vertical newWord |> ignore
-                    match true with // space to the left
-                    | true -> 
-                        gen' (position - 1) newWord rack gaddag
-                    | false -> 
-                        let gaddag' = Dictionary.step '#' gaddag
-                        match gaddag' with
-                        | Some (_, gaddag') ->
-                            gen'(1) newWord rack gaddag'
-                        | None -> ()      
+                    gen' (position - 1) newWord rack gaddag // only if space to the left, but dont matter for now
+                    let gaddag' = Dictionary.step '#' gaddag
+                    match gaddag' with
+                    | Some (_, gaddag') ->
+                        gen'(1) newWord rack gaddag'
+                    | None -> ()      
                 | None -> ()       
                 
                 // if letter is on old arc no letter to the left call recordPlay
