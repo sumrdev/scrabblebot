@@ -158,8 +158,9 @@ module Scrabble =
 
     //get the move to play
     let rec getMove (st : State.state) =
-        
-        getFirstMove st |> ignore
+        let res = ScrabbleBot.gen 0 [] st.hand st.dict (0,0) st.playedTiles true st.tiles
+
+        //getFirstMove st |> ignore
         SMPass
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
@@ -180,7 +181,7 @@ module Scrabble =
                 let move = getMove st
                 
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                send cstream (move)
+                //send cstream (move)
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
