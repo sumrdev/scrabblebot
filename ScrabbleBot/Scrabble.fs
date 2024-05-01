@@ -91,7 +91,7 @@ module Scrabble =
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
             match l with
-            | [] -> failwith "No players left"; failwith "No players left"
+            | [] -> forcePrint "No players left"; failwith "No players left"
             | h::t when h=st.playerTurn -> 
                 match t with 
                 | [] -> List.head st.playersAlive
@@ -175,9 +175,9 @@ module Scrabble =
 
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        let best: tileInstance list =  fst (List.head sorted)
-        forcePrint (sprintf "Best word is : %A\n" best)
-        SMPlay best
+        match sorted with
+        | [] -> SMPass
+        | m -> SMPlay (List.head m |> fst)
         
         //getFirstMove st |> ignore
         

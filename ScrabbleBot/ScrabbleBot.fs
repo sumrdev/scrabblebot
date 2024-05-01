@@ -87,50 +87,49 @@ module internal ScrabbleBot
     
 
         and GoOn (position: int) (letter: unplacedTile) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (newGaddag: (bool * Dictionary.Dict) option) (oldGaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord,tileInstance>) (vertical: bool) (added: int) (ourTile: bool) =
-            match position <= 0 with
-            | true -> 
-                let testAnchor1 = 
-                    match vertical with
-                    | true  -> (fst anchor - 1, snd anchor)
-                    | false -> (fst anchor, snd anchor - 1)
-                let testAnchor2 =
-                    match vertical with
-                    | true  -> (fst anchor + 1, snd anchor)
-                    | false -> (fst anchor , snd anchor + 1)
-            
-                let leftSqr = lookup position testAnchor1 playedTiles vertical
-                let rightSqr = lookup position testAnchor2 playedTiles vertical
-                match leftSqr, rightSqr with
-                | Some _, Some _ -> ()
-                | _ ->
-
-                let newCoord = getcoord position anchor vertical
-                let newWord =  
-                    match ourTile with
-                    true -> word @ [(newCoord, letter)]
-                    | false -> word
-
-                match newGaddag with
-                | Some (_, gaddag) -> 
-                    checkValidPlay (position-1) gaddag anchor playedTiles vertical newWord added |> ignore
-                    gen' (position - 1) newWord rack gaddag added // only if space to the left, but dont matter for now
-                    let gaddag' = Dictionary.step '#' gaddag
-                    match gaddag' with
-                    | Some (_, gaddag') ->
-                        gen'(1) newWord rack gaddag' added
-                    | None -> ()      
-                | None -> ()       
+            let testAnchor1 = 
+                match vertical with
+                | true  -> (fst anchor - 1, snd anchor)
+                | false -> (fst anchor, snd anchor - 1)
+            let testAnchor2 =
+                match vertical with
+                | true  -> (fst anchor + 1, snd anchor)
+                | false -> (fst anchor , snd anchor + 1)
+            let leftSqr = lookup position testAnchor1 playedTiles vertical
+            let rightSqr = lookup position testAnchor2 playedTiles vertical
+            match leftSqr, rightSqr, ourTile with
+            | Some _, _, true -> ()
+            | _, Some _, true -> ()
+            | _ ->
+                match position <= 0 with
+                | true -> 
                 
-                // if letter is on old arc no letter to the left call recordPlay
-            | false -> 
-                let newCoord = getcoord position anchor vertical
-                let newWord = [(newCoord, letter)] @ word 
-                match newGaddag with
-                | Some (_, gaddag) -> 
-                    checkValidPlay (position+1) gaddag anchor playedTiles vertical newWord added |> ignore
-                    gen' (position + 1) newWord rack gaddag added
-                | None -> ()
-            
+                    let newCoord = getcoord position anchor vertical
+                    let newWord =  
+                        match ourTile with
+                        true -> word @ [(newCoord, letter)]
+                        | false -> word
+
+                    match newGaddag with
+                    | Some (_, gaddag) -> 
+                        checkValidPlay (position-1) gaddag anchor playedTiles vertical newWord added |> ignore
+                        gen' (position - 1) newWord rack gaddag added // only if space to the left, but dont matter for now
+                        let gaddag' = Dictionary.step '#' gaddag
+                        match gaddag' with
+                        | Some (_, gaddag') ->
+                            gen'(1) newWord rack gaddag' added
+                        | None -> ()      
+                    | None -> ()       
+                    
+                    // if letter is on old arc no letter to the left call recordPlay
+                | false -> 
+                    let newCoord = getcoord position anchor vertical
+                    let newWord = [(newCoord, letter)] @ word 
+                    match newGaddag with
+                    | Some (_, gaddag) -> 
+                        checkValidPlay (position+1) gaddag anchor playedTiles vertical newWord added |> ignore
+                        gen' (position + 1) newWord rack gaddag added
+                    | None -> ()
 
         gen' position word rack gaddag 0
         finalWords
