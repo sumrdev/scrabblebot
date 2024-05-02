@@ -95,6 +95,7 @@ module Scrabble =
 
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
+        forcePrint (sprintf "Possible moves: %A\n" sorted)
         match sorted with
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
@@ -185,7 +186,9 @@ module Scrabble =
                     forcePrint (sprintf "FAILURE!! not implemented: %A\n" a)
                     failwith (sprintf "not implemented: %A" a)
                     aux st
-            | RGPE err -> forcePrint (sprintf "Gameplay Error:\n%A" err); aux st
+            | RGPE err -> 
+                failwith (sprintf "Error ")
+                forcePrint (sprintf "Gameplay Error:\n%A" err); aux st
         aux st
 
     let startGame 

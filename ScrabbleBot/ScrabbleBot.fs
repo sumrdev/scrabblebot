@@ -105,7 +105,6 @@ module internal ScrabbleBot
                 match rackList |> List.isEmpty with
                 | false ->  
                     // for each letter on the rack and in the next step of gaddag call GoOn 
-                    let playableRack = validPerpendicularLetters s
                     List.map (fun id -> 
                         let tileList = getTileList id s.tiles
                         List.map (fun (u: unplacedTile) ->
@@ -143,7 +142,7 @@ module internal ScrabbleBot
 
                     match newGaddag with
                     | Some (_, gaddag) -> 
-                        checkValidPlay {s with position =(s.position - 1) } |> ignore
+                        checkValidPlay {s with word=newWord; gaddag=gaddag; position=(s.position-1)} |> ignore
                         gen' { s with position=(s.position - 1); word=newWord; gaddag=gaddag }// only if space to the left, but dont matter for now
                         let gaddag' = Dictionary.step '#' gaddag
                         match gaddag' with
@@ -158,7 +157,7 @@ module internal ScrabbleBot
                     let newWord = [(newCoord, letter)] @ s.word 
                     match newGaddag with
                     | Some (_, gaddag) -> 
-                        checkValidPlay {s with position =(s.position+1)} |> ignore
+                        checkValidPlay {s with word=newWord; gaddag=gaddag; position=(s.position+1)} |> ignore
                         gen' { s with position=(s.position + 1); word=newWord; gaddag=gaddag}
                     | None -> ()
 
