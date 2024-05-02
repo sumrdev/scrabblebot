@@ -82,7 +82,7 @@ module internal ScrabbleBot
             ()
         else
         match Dictionary.step '#' s.gaddag with
-            | Some (true, gaddag') -> 
+            | Some (true, _) -> 
                 match lookup s with
                 | Some l -> ()
                 | None -> recordPlay s.word // record if no letter to the left
@@ -99,7 +99,10 @@ module internal ScrabbleBot
             match lookup s with
             | Some l -> 
                 let (_, unplaced) = l
-                GoOn unplaced false (Dictionary.step (getCharTile l) s.gaddag) s
+                let newGaddag = Dictionary.step (getCharTile l) s.gaddag
+                match newGaddag with
+                | Some (_, gaddag) -> GoOn unplaced false {s with gaddag=gaddag }
+                | None -> ()
             | None   -> 
                 let rackList = MultiSet.toList s.rack
                 match rackList |> List.isEmpty with
@@ -109,14 +112,17 @@ module internal ScrabbleBot
                         let tileList = getTileList id s.tiles
                         List.map (fun (u: unplacedTile) ->
                             let newRack = (removeFromRack id s.rack)
-                            GoOn u true (Dictionary.step (getChar u) s.gaddag) {s with rack=newRack; tilesAdded=(s.tilesAdded + 1) }
+                            let newGaddag = Dictionary.step (getChar u) s.gaddag
+                            match newGaddag with
+                            | Some (_, gaddag) -> GoOn u true {s with rack=newRack; tilesAdded=(s.tilesAdded + 1); gaddag=gaddag }
+                            | None -> ()
                         ) tileList
                     ) rackList |> ignore
                     ()
                 | _ -> () // no letters on the rack
     
 
-        and GoOn (letter: unplacedTile) (ourTile: bool) (newGaddag: (bool * Dictionary.Dict) option) (s: genState) =
+        and GoOn (letter: unplacedTile) (ourTile: bool) (s: genState) =
             let testAnchor1 = 
                 match s.vertical with
                 | true  -> (fst s.anchor - 1, snd s.anchor)
@@ -140,26 +146,20 @@ module internal ScrabbleBot
                         true -> s.word @ [(newCoord, letter)]
                         | false -> s.word
 
-                    match newGaddag with
-                    | Some (_, gaddag) -> 
-                        checkValidPlay {s with word=newWord; gaddag=gaddag; position=(s.position-1)} |> ignore
-                        gen' { s with position=(s.position - 1); word=newWord; gaddag=gaddag }// only if space to the left, but dont matter for now
-                        let gaddag' = Dictionary.step '#' gaddag
-                        match gaddag' with
-                        | Some (_, gaddag') ->
-                            gen' {s with position=(1); word=newWord; gaddag=gaddag' }
-                        | None -> ()      
-                    | None -> ()       
+                    checkValidPlay {s with word=newWord; position=(s.position-1)} |> ignore
+                    gen' { s with position=(s.position - 1); word=newWord }// only if space to the left, but dont matter for now
+                    let gaddag' = Dictionary.step '#' s.gaddag
+                    match gaddag' with
+                    | Some (_, gaddag') ->
+                        gen' {s with position=(1); word=newWord; gaddag=gaddag' }
+                    | None -> ()      
                     
                     // if letter is on old arc no letter to the left call recordPlay
                 | false -> 
                     let newCoord = getcoord s
                     let newWord = [(newCoord, letter)] @ s.word 
-                    match newGaddag with
-                    | Some (_, gaddag) -> 
-                        checkValidPlay {s with word=newWord; gaddag=gaddag; position=(s.position+1)} |> ignore
-                        gen' { s with position=(s.position + 1); word=newWord; gaddag=gaddag}
-                    | None -> ()
+                    checkValidPlay {s with word=newWord; position=(s.position+1)} |> ignore
+                    gen' { s with position=(s.position + 1); word=newWord}
 
         gen' s
         finalWords
