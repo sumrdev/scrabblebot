@@ -56,6 +56,7 @@ module State =
     let hand st          = st.hand
 
 module Scrabble =
+    open System.Threading.Tasks
     let updatePlayerTurn (st : State.state) = 
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
@@ -74,6 +75,26 @@ module Scrabble =
         {st with playersAlive = playersAlive'}
 
     type word = (uint32 * (char * int)) list
+    //async function to get the possible moves
+    let asyncGenMoves (st : State.state) (pos: coord) vertical: Async<ScrabbleBot.tileInstance list list> = async {
+        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
+        return ScrabbleBot.gen state
+    }
+
+    let asyncGetMove (st : State.state) : Async<ScrabbleBot.tileInstance list> = async {
+        let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
+        let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
+        
+        let! verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true) |> Async.Parallel
+        let! horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false) |> Async.Parallel
+        
+        let allMoves = List.concat (List.concat verticalMovesTasks) @ List.concat (List.concat horizontalMovesTasks)
+
+        // ... continue with filtering and scoring moves as before ...
+        //let bestMove = // calculate the best move
+        //return bestMove
+        return [] //temp should be removed
+    }
 
     let genMoves (st : State.state) (pos: coord) vertical: ScrabbleBot.tileInstance list list =
         let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
