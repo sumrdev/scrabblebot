@@ -3,14 +3,27 @@ module internal ScrabbleBot
     open ScrabbleUtil.DebugPrint
 
     
-    //mudible (coord * (uint32 * char)) list
-    
-    //should check the game board for holes and border and other things
+    //TODO: should check the game board for holes and border and other things
     (* let checkVaildPosition = 
         failwith "Not implemented"  *)
     type unplacedTile = uint32 * (char * int)
     type tileInstance = coord * unplacedTile
     let mutable finalWords: list<list<tileInstance>> = []
+
+    type genState = {
+        position: int
+        word: tileInstance list
+        rack: MultiSet.MultiSet<uint32>
+        gaddag: Dictionary.Dict
+        anchor: coord
+        playedTiles: Map<coord, tileInstance>
+        vertical: bool
+        tiles: Map<uint32, tile>
+        //Timeout stuff
+    }
+    
+    let mkGenState (position: int) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) = 
+        {position = position; word = word; rack = rack; gaddag = gaddag; anchor = anchor; playedTiles = playedTiles; vertical = vertical; tiles = tiles}
     
     let recordPlay(word: tileInstance list) =
         let letters =  List.map (fun (coord, (id, (c, _))) -> c) word

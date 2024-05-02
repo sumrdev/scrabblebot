@@ -33,9 +33,10 @@ module State =
         tiles         : Map<uint32, tile>
         round         : uint32
         playedTiles   : Map<coord,tileInstance>
+        timeout       : uint32 option
     }
 
-    let mkState b d pn h playerTurn numPlayers  t = {
+    let mkState b d pn h playerTurn numPlayers t timeout = {
         board = b; 
         dict = d;  
         playerNumber = pn; 
@@ -46,6 +47,7 @@ module State =
         tiles = t;
         round = 0u;
         playedTiles = Map.empty
+        timeout = timeout
     }
 
     let board st         = st.board
@@ -212,5 +214,5 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet playerTurn numPlayers tiles )
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet playerTurn numPlayers tiles timeout)
         
