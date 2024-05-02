@@ -8,28 +8,7 @@ open System.IO
 open ScrabbleUtil.DebugPrint
 
 
-// TODO: The RegEx module is only used to parse human input. It is not used for the final product.
 type tileInstance = coord * (uint32 * (char * int))
-
-module RegEx =
-    open System.Text.RegularExpressions
-
-    let (|Regex|_|) pattern input =
-        let m = Regex.Match(input, pattern)
-        if m.Success then Some(List.tail [ for g in m.Groups -> g.Value ])
-        else None
-
-    let parseMove ts =
-        let pattern = @"([-]?[0-9]+[ ])([-]?[0-9]+[ ])([0-9]+)([A-Z]{1})([0-9]+)[ ]?" 
-        Regex.Matches(ts, pattern) |>
-        Seq.cast<Match> |> 
-        Seq.map 
-            (fun t -> 
-                match t.Value with
-                | Regex pattern [x; y; id; c; p] ->
-                    ((x |> int, y |> int), (id |> uint32, (c |> char, p |> int)))
-                | _ -> failwith "Failed (should never happen)") |>
-        Seq.toList
 
  module Print =
 
@@ -45,7 +24,7 @@ module State =
 
     type state = {
         board         : Parser.board
-        dict          : ScrabbleUtil.Dictionary.Dict
+        dict          : Dictionary.Dict
         playerNumber  : uint32
         hand          : MultiSet.MultiSet<uint32> // Multiset of piece ids and their counts, received from the server
         playerTurn    : uint32
@@ -75,18 +54,6 @@ module State =
     let hand st          = st.hand
 
 module Scrabble =
-    open System.Threading
-    //list with legal moves
-    let legalMoves = []
-    //best move so far should be a index in legalMoves
-    let bestMove = 0
-    
-
-    //legelmove should caclulate the score of the move. First check if it is the best move so far and if so, save it to bestmove and then add it to the list of legal moves
-    let legalMove (word) =
-        //calculate the score of the move and add it to the list of legal moves then check if it is the best move so far and if so, save it to bestmove
-        failwith "Not implemented"
-
     let updatePlayerTurn (st : State.state) = 
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
@@ -106,58 +73,9 @@ module Scrabble =
 
     type word = (uint32 * (char * int)) list
 
-    let handToTiles (hand : MultiSet.MultiSet<uint32>) (tiles : Map<uint32, tile>): List<uint32 * tile> =
-        MultiSet.toList hand |> List.map (fun x -> (x, Map.find x tiles))
-    
-    let rec getFirstMove (st : State.state) =
-        let tilesWithWildcars: List<uint32 * tile> = handToTiles st.hand st.tiles
-
-        // TODO: not ignore wildcards
-        let tiles: word = tilesWithWildcars |> List.map (fun (id, x) -> (id, Set.toSeq x |> Seq.head)) 
-
-        let applyTile (tl: (uint32 * (char * int))) (dict: Dictionary.Dict) currentWord : (Dictionary.Dict * bool) option =
-            let cur = Dictionary.step (tl |> snd |> fst) dict
-            match cur with
-            | Some (_, d) -> 
-                let test = Dictionary.step '#' d
-                match test with
-                | Some (true, _) -> 
-                    Some (d, true)
-                | _ -> Some (d, false)
-            | None -> None
-        
-        let rec applyTileList (tiles: (uint32 * (char * int)) list) (d: Dictionary.Dict) (currentWord: word) (acc: word Set) : word Set  =
-            // Todo: stop passing word, to all recursive calls
-            let res = List.map (fun x -> 
-                let newList = List.filter (fun y -> y <> x) tiles
-                if List.isEmpty newList then acc
-                else
-                    let d' = applyTile x d currentWord
-                    match d' with
-                    | Some (d', true) -> 
-                        applyTileList newList d' (currentWord@[x]) (Set.add (currentWord@[x]) acc);
-                    | Some (d', false) ->
-                        applyTileList newList d' (currentWord@[x]) acc;
-                    | None -> acc
-                )  
-            
-            Set.unionMany (res tiles)
-                   
-        let help = applyTileList tiles st.dict [] Set.empty
-        let words: word list = Set.toList help
-        let reverse: word list = List.map (fun x -> List.rev x) words
-        let getPoints (word: word) : int = List.fold (fun acc (_, (_, v)) -> acc + v) 0 word
-
-        let withPoints: (word * int) list = List.map (fun x -> (x, getPoints x)) reverse
-        let sorted: (word * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        let best: word =  fst (List.head sorted)
-
-        forcePrint (sprintf "Words: %A\n" best)
-        let move: (coord * (uint32 * (char * int))) list = List.mapi (fun i x -> ((i, 0), x)) best
-        SMPlay move
-    
     let genMoves (st : State.state) pos vertical: ScrabbleBot.tileInstance list list =
         ScrabbleBot.gen 0 [] st.hand st.dict pos st.playedTiles vertical st.tiles
+    
     //get the move to play
     let rec getMove (st : State.state) =
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
@@ -179,7 +97,6 @@ module Scrabble =
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
         
-        //getFirstMove st |> ignore
         
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
