@@ -14,16 +14,29 @@ module internal ScrabbleBot
         position: int
         word: tileInstance list
         rack: MultiSet.MultiSet<uint32>
+        playableRack: MultiSet.MultiSet<uint32>
         gaddag: Dictionary.Dict
         anchor: coord
         playedTiles: Map<coord, tileInstance>
         vertical: bool
         tiles: Map<uint32, tile>
+        tilesAdded: int
+        
         //Timeout stuff
     }
     
-    let mkGenState (position: int) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) = 
-        {position = position; word = word; rack = rack; gaddag = gaddag; anchor = anchor; playedTiles = playedTiles; vertical = vertical; tiles = tiles}
+    let mkGenState (position: int) (word: tileInstance list)(rack: MultiSet.MultiSet<uint32>) (playableRack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) (tilesAdded: int) = {
+        position = position; 
+        word = word; 
+        rack = rack; 
+        playableRack = playableRack;
+        gaddag = gaddag; 
+        anchor = anchor; 
+        playedTiles = playedTiles; 
+        vertical = vertical; 
+        tiles = tiles;
+        tilesAdded=tilesAdded; 
+        }
     
     let recordPlay(word: tileInstance list) =
         let letters =  List.map (fun (coord, (id, (c, _))) -> c) word
@@ -32,14 +45,14 @@ module internal ScrabbleBot
         //forcePrint (sprintf "Found valid word: %A\n"  string)
         finalWords <- finalWords @ [word]
 
-    let getcoord (pos: int) (anchor: coord) (vertical: bool) = 
-        match vertical with
+    let getcoord (s: genState) = 
+        match s.vertical with
         | true -> 
-            let (x, y) = anchor
-            (x, y + pos)
+            let (x, y) = s.anchor
+            (x, y + s.position)
         | false -> 
-            let (x, y) = anchor
-            (x + pos, y)
+            let (x, y) = s.anchor
+            (x + s.position, y)
 
     let getChar (c: unplacedTile) = 
         let (_, (c, _)) = c
@@ -49,9 +62,9 @@ module internal ScrabbleBot
         let (_, (_, (c, _))) = c
         c
 
-    let lookup (position: int) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool): tileInstance option =
-        let newCoord: coord = getcoord position anchor vertical
-        match playedTiles.TryGetValue newCoord with
+    let lookup (s: genState): tileInstance option =
+        let newCoord: coord = getcoord s
+        match s.playedTiles.TryGetValue newCoord with
         | true, c -> Some c
         | _ -> None
         
@@ -64,86 +77,91 @@ module internal ScrabbleBot
         | _ -> [] 
     
 
-    let checkValidPlay (newPos: int) gaddag anchor playedTiles vertical newWord added =
-        if added = 0 then
-            false
+    let checkValidPlay (s: genState): unit =
+        if s.tilesAdded = 0 then
+            ()
         else
-        match Dictionary.step '#' gaddag with
+        match Dictionary.step '#' s.gaddag with
             | Some (true, gaddag') -> 
-                match lookup newPos anchor playedTiles vertical with
-                | Some l -> true
-                | None -> 
-                    recordPlay newWord  // record if no letter to the left
-                    false
-            | _ -> false
+                match lookup s with
+                | Some l -> ()
+                | None -> recordPlay s.word // record if no letter to the left
+            | _ -> ()
 
-    let gen (position: int) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) gaddag (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles : Map<uint32, tile>) = 
+
+    let validPerpendicularLetters (s: genState) : MultiSet.MultiSet<uint32> =
+
+        s.rack        
+
+    let gen (s: genState) = 
         finalWords <- []
-        let rec gen' (position: int) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) gaddag (added: int) =
-            match lookup position anchor playedTiles vertical with
+        let rec gen' (s: genState) =
+            match lookup s with
             | Some l -> 
                 let (_, unplaced) = l
-                GoOn position unplaced word rack (Dictionary.step (getCharTile l) gaddag) gaddag anchor playedTiles vertical added false
+                GoOn unplaced false (Dictionary.step (getCharTile l) s.gaddag) s
             | None   -> 
-                let rackList = MultiSet.toList rack
+                let rackList = MultiSet.toList s.rack
                 match rackList |> List.isEmpty with
                 | false ->  
                     // for each letter on the rack and in the next step of gaddag call GoOn 
+                    let playableRack = validPerpendicularLetters s
                     List.map (fun id -> 
-                        let tileList = getTileList id tiles
-                        List.map (fun (c: unplacedTile) ->
-                            GoOn position c word (removeFromRack id rack) (Dictionary.step (getChar c) gaddag) gaddag anchor playedTiles vertical (added + 1) true
+                        let tileList = getTileList id s.tiles
+                        List.map (fun (u: unplacedTile) ->
+                            let newRack = (removeFromRack id s.rack)
+                            GoOn u true (Dictionary.step (getChar u) s.gaddag) {s with rack=newRack; tilesAdded=(s.tilesAdded + 1) }
                         ) tileList
                     ) rackList |> ignore
                     ()
                 | _ -> () // no letters on the rack
     
 
-        and GoOn (position: int) (letter: unplacedTile) (word: tileInstance list) (rack: MultiSet.MultiSet<uint32>) (newGaddag: (bool * Dictionary.Dict) option) (oldGaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord,tileInstance>) (vertical: bool) (added: int) (ourTile: bool) =
+        and GoOn (letter: unplacedTile) (ourTile: bool) (newGaddag: (bool * Dictionary.Dict) option) (s: genState) =
             let testAnchor1 = 
-                match vertical with
-                | true  -> (fst anchor - 1, snd anchor)
-                | false -> (fst anchor, snd anchor - 1)
+                match s.vertical with
+                | true  -> (fst s.anchor - 1, snd s.anchor)
+                | false -> (fst s.anchor, snd s.anchor - 1)
             let testAnchor2 =
-                match vertical with
-                | true  -> (fst anchor + 1, snd anchor)
-                | false -> (fst anchor , snd anchor + 1)
-            let leftSqr = lookup position testAnchor1 playedTiles vertical
-            let rightSqr = lookup position testAnchor2 playedTiles vertical
+                match s.vertical with
+                | true  -> (fst s.anchor + 1, snd s.anchor)
+                | false -> (fst s.anchor , snd s.anchor + 1)
+            let leftSqr = lookup {s with anchor = testAnchor1}
+            let rightSqr = lookup {s with anchor = testAnchor2}
             match leftSqr, rightSqr, ourTile with
             | Some _, _, true -> ()
             | _, Some _, true -> ()
             | _ ->
-                match position <= 0 with
+                match s.position <= 0 with
                 | true -> 
                 
-                    let newCoord = getcoord position anchor vertical
+                    let newCoord = getcoord s
                     let newWord =  
                         match ourTile with
-                        true -> word @ [(newCoord, letter)]
-                        | false -> word
+                        true -> s.word @ [(newCoord, letter)]
+                        | false -> s.word
 
                     match newGaddag with
                     | Some (_, gaddag) -> 
-                        checkValidPlay (position-1) gaddag anchor playedTiles vertical newWord added |> ignore
-                        gen' (position - 1) newWord rack gaddag added // only if space to the left, but dont matter for now
+                        checkValidPlay {s with position =(s.position - 1) } |> ignore
+                        gen' { s with position=(s.position - 1); word=newWord; gaddag=gaddag }// only if space to the left, but dont matter for now
                         let gaddag' = Dictionary.step '#' gaddag
                         match gaddag' with
                         | Some (_, gaddag') ->
-                            gen'(1) newWord rack gaddag' added
+                            gen' {s with position=(1); word=newWord; gaddag=gaddag' }
                         | None -> ()      
                     | None -> ()       
                     
                     // if letter is on old arc no letter to the left call recordPlay
                 | false -> 
-                    let newCoord = getcoord position anchor vertical
-                    let newWord = [(newCoord, letter)] @ word 
+                    let newCoord = getcoord s
+                    let newWord = [(newCoord, letter)] @ s.word 
                     match newGaddag with
                     | Some (_, gaddag) -> 
-                        checkValidPlay (position+1) gaddag anchor playedTiles vertical newWord added |> ignore
-                        gen' (position + 1) newWord rack gaddag added
+                        checkValidPlay {s with position =(s.position+1)} |> ignore
+                        gen' { s with position=(s.position + 1); word=newWord; gaddag=gaddag}
                     | None -> ()
 
-        gen' position word rack gaddag 0
+        gen' s
         finalWords
         

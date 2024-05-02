@@ -75,9 +75,9 @@ module Scrabble =
 
     type word = (uint32 * (char * int)) list
 
-    let genMoves (st : State.state) pos vertical: ScrabbleBot.tileInstance list list =
-        ScrabbleBot.gen 0 [] st.hand st.dict pos st.playedTiles vertical st.tiles
-    
+    let genMoves (st : State.state) (pos: coord) vertical: ScrabbleBot.tileInstance list list =
+        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
+        ScrabbleBot.gen state
     //get the move to play
     let rec getMove (st : State.state) =
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
