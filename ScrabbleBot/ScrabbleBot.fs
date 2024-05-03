@@ -90,30 +90,28 @@ module internal ScrabbleBot
             | _ -> ()
     let checkPerpendicular (s: genState) : MultiSet.MultiSet<uint32> =
         let vertical = not s.vertical
-        let s' = mkGenState s.position s.word s.rack s.playableRack s.gaddag s.anchor s.playedTiles vertical s.tiles s.tilesAdded
+        let s' = {s with vertical=vertical}
         // get new gaddag
-        let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool) (acc: char list): bool=
-            forcePrint (sprintf "Step: %A\n" (pos, backwards, acc))
+        let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool) (prevWord: bool) : bool=
             match lookup {s with position=pos}, backwards with 
             | Some tile, true -> 
                 match Dictionary.step (getCharTile tile) gaddag with 
-                | Some (_, gaddag') -> step gaddag' (pos-1) true (getChar (tile |> snd) :: acc)
+                | Some (isWord, gaddag') -> step gaddag' (pos-1) true isWord
                 | None -> false
             | Some tile, false ->
                 match Dictionary.step (getCharTile tile) gaddag with 
-                | Some (_, gaddag') -> step gaddag' (pos+1) false (getChar (tile |> snd) :: acc)
+                | Some (isWord, gaddag') -> step gaddag' (pos+1) false isWord
                 | None -> false
             | None, true -> 
                 match (Dictionary.reverse gaddag) with
-                | Some (_, gaddag) -> step gaddag (1) false acc
+                | Some (isWord, gaddag) -> step gaddag (1) false isWord
                 | None -> false
-            | None, false -> Dictionary.lookup (String.concat "" <| List.map string acc ) gaddag
+            | None, false -> prevWord
         s.rack |> MultiSet.toList |> List.filter (fun id -> 
             let tileList = getTileList id s'.tiles
             List.exists (fun (u: unplacedTile) ->
-                let newGaddag = Dictionary.step (getChar u) s.freshGaddag
-                match newGaddag with
-                | Some (_, gaddag) -> step gaddag 0 true [getChar u]
+                match Dictionary.step (getChar u) s'.freshGaddag with
+                | Some (_, gaddag) -> step gaddag -1 true false
                 | None -> false
             ) tileList
         ) |> MultiSet.ofList
@@ -131,7 +129,7 @@ module internal ScrabbleBot
 
         match leftSqr, rightSqr with 
             | Some _, _ 
-            | _, Some _-> checkPerpendicular s
+            | _, Some _-> forcePrint (sprintf "%A\n" (checkPerpendicular s)); checkPerpendicular s
             | _ -> s.rack  
 
     let gen (s: genState) = 

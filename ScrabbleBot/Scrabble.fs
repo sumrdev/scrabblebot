@@ -141,7 +141,7 @@ module Scrabble =
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
                 
-                if count < 2 then //shoudl stop for debug
+                if count < 100 then //shoudl stop for debug
                     forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                     count <- count + 1
                     send cstream move
