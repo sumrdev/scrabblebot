@@ -21,7 +21,7 @@ module internal ScrabbleBot
         vertical: bool
         tiles: Map<uint32, tile>
         tilesAdded: int
-        
+        freshGaddag: Dictionary.Dict 
         //Timeout stuff
     }
     
@@ -36,6 +36,7 @@ module internal ScrabbleBot
         vertical = vertical; 
         tiles = tiles;
         tilesAdded=tilesAdded; 
+        freshGaddag = gaddag;
         }
     
     let recordPlay(word: tileInstance list) =
@@ -87,8 +88,31 @@ module internal ScrabbleBot
                 | Some l -> ()
                 | None -> recordPlay s.word // record if no letter to the left
             | _ -> ()
-
-
+    let checkPerpendicular (s: genState) : MultiSet.MultiSet<uint32> =
+        let vertical = not s.vertical
+        let s' = mkGenState s.position s.word s.rack s.playableRack s.gaddag s.anchor s.playedTiles vertical s.tiles s.tilesAdded
+        // get new gaddag
+        let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool): bool=
+            match lookup {s with position=pos}, backwards with 
+            | Some tile, true -> 
+                match Dictionary.step (getCharTile tile) gaddag with 
+                | Some (_, gaddag') -> step gaddag' (pos-1) true
+                | None -> false
+            | Some tile, false ->
+                match Dictionary.step (getCharTile tile) gaddag with 
+                | Some (_, gaddag') -> step gaddag' (pos+1) false
+                | None -> false
+            | None, true -> step gaddag (pos-1) false 
+            | None, false -> Dictionary.lookup "" gaddag
+        s.rack |> MultiSet.toList |> List.filter (fun id -> 
+            let tileList = getTileList id s'.tiles
+            List.exists (fun (u: unplacedTile) ->
+                let newGaddag = Dictionary.step (getChar u) s.gaddag
+                match newGaddag with
+                | Some (_, gaddag) -> step gaddag 0 false
+                | None -> false
+            ) tileList
+        ) |> MultiSet.ofList
     let validPerpendicularLetters (s: genState) : MultiSet.MultiSet<uint32> =
         let testAnchor1 = 
             match s.vertical with
@@ -100,9 +124,10 @@ module internal ScrabbleBot
             | false -> (fst s.anchor , snd s.anchor + 1)
         let leftSqr = lookup {s with anchor = testAnchor1}
         let rightSqr = lookup {s with anchor = testAnchor2}
+
         match leftSqr, rightSqr with 
             | Some _, _ 
-            | _, Some _-> MultiSet.empty 
+            | _, Some _-> checkPerpendicular s
             | _ -> s.rack  
 
     let gen (s: genState) = 

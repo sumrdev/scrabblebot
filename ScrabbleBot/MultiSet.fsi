@@ -11,3 +11,4 @@ module internal MultiSet
     val subtract: MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
     val union: MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
     val toList: MultiSet<'a> -> 'a list
+    val ofList: 'a list -> MultiSet<'a>
