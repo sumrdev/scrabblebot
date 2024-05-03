@@ -116,7 +116,7 @@ module Scrabble =
 
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        forcePrint (sprintf "Possible moves: %A\n" sorted)
+        // forcePrint (sprintf "Possible moves: %A\n" sorted)
         match sorted with
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
@@ -141,10 +141,10 @@ module Scrabble =
                 // remove the force print when you move on from manual input (or when you have learnt the format)
                 let move = getMove st
                 
-                //if count < 2 then //shoudl stop for debug
-                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                count <- count + 1
-                send cstream move
+                if count < 2 then //shoudl stop for debug
+                    forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                    count <- count + 1
+                    send cstream move
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.

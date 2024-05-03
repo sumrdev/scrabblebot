@@ -92,24 +92,28 @@ module internal ScrabbleBot
         let vertical = not s.vertical
         let s' = mkGenState s.position s.word s.rack s.playableRack s.gaddag s.anchor s.playedTiles vertical s.tiles s.tilesAdded
         // get new gaddag
-        let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool): bool=
+        let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool) (acc: char list): bool=
+            forcePrint (sprintf "Step: %A\n" (pos, backwards, acc))
             match lookup {s with position=pos}, backwards with 
             | Some tile, true -> 
                 match Dictionary.step (getCharTile tile) gaddag with 
-                | Some (_, gaddag') -> step gaddag' (pos-1) true
+                | Some (_, gaddag') -> step gaddag' (pos-1) true (getChar (tile |> snd) :: acc)
                 | None -> false
             | Some tile, false ->
                 match Dictionary.step (getCharTile tile) gaddag with 
-                | Some (_, gaddag') -> step gaddag' (pos+1) false
+                | Some (_, gaddag') -> step gaddag' (pos+1) false (getChar (tile |> snd) :: acc)
                 | None -> false
-            | None, true -> step gaddag (pos-1) false 
-            | None, false -> Dictionary.lookup "" gaddag
+            | None, true -> 
+                match (Dictionary.reverse gaddag) with
+                | Some (_, gaddag) -> step gaddag (1) false acc
+                | None -> false
+            | None, false -> Dictionary.lookup (String.concat "" <| List.map string acc ) gaddag
         s.rack |> MultiSet.toList |> List.filter (fun id -> 
             let tileList = getTileList id s'.tiles
             List.exists (fun (u: unplacedTile) ->
-                let newGaddag = Dictionary.step (getChar u) s.gaddag
+                let newGaddag = Dictionary.step (getChar u) s.freshGaddag
                 match newGaddag with
-                | Some (_, gaddag) -> step gaddag 0 false
+                | Some (_, gaddag) -> step gaddag 0 true [getChar u]
                 | None -> false
             ) tileList
         ) |> MultiSet.ofList
