@@ -91,18 +91,18 @@ module internal ScrabbleBot
 
     let validPerpendicularLetters (s: genState) : MultiSet.MultiSet<uint32> =
         let testAnchor1 = 
-                match s.vertical with
-                | true  -> (fst s.anchor - 1, snd s.anchor)
-                | false -> (fst s.anchor, snd s.anchor - 1)
+            match s.vertical with
+            | true  -> (fst s.anchor - 1, snd s.anchor)
+            | false -> (fst s.anchor, snd s.anchor - 1)
         let testAnchor2 =
-                match s.vertical with
-                | true  -> (fst s.anchor + 1, snd s.anchor)
-                | false -> (fst s.anchor , snd s.anchor + 1)
+            match s.vertical with
+            | true  -> (fst s.anchor + 1, snd s.anchor)
+            | false -> (fst s.anchor , snd s.anchor + 1)
         let leftSqr = lookup {s with anchor = testAnchor1}
         let rightSqr = lookup {s with anchor = testAnchor2}
         match leftSqr, rightSqr with 
             | Some _, _ 
-            | _, Some _-> s.rack
+            | _, Some _-> MultiSet.empty 
             | _ -> s.rack  
 
     let gen (s: genState) = 
@@ -116,8 +116,8 @@ module internal ScrabbleBot
                 | Some (_, gaddag) -> GoOn unplaced false {s with gaddag=gaddag }
                 | None -> ()
             | None   -> 
-                let rackList = MultiSet.toList s.rack
-                match rackList |> List.isEmpty with
+                let playableRack = validPerpendicularLetters s |> MultiSet.toList
+                match playableRack |> List.isEmpty with
                 | false ->  
                     // for each letter on the rack and in the next step of gaddag call GoOn 
                     List.map (fun id -> 
@@ -129,13 +129,12 @@ module internal ScrabbleBot
                             | Some (_, gaddag) -> GoOn u true {s with rack=newRack; tilesAdded=(s.tilesAdded + 1); gaddag=gaddag }
                             | None -> ()
                         ) tileList
-                    ) rackList |> ignore
+                    ) playableRack |> ignore
                     ()
                 | _ -> () // no letters on the rack
     
 
         and GoOn (letter: unplacedTile) (ourTile: bool) (s: genState) =
-            
                 match s.position <= 0 with
                 | true -> 
                 
@@ -147,7 +146,7 @@ module internal ScrabbleBot
 
                     checkValidPlay {s with word=newWord; position=(s.position-1)} |> ignore
                     gen' { s with position=(s.position - 1); word=newWord }// only if space to the left, but dont matter for now
-                    let gaddag' = Dictionary.step '#' s.gaddag
+                    let gaddag' = Dictionary.reverse s.gaddag
                     match gaddag' with
                     | Some (_, gaddag') ->
                         gen' {s with position=(1); word=newWord; gaddag=gaddag' }
