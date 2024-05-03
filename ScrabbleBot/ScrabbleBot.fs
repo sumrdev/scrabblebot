@@ -90,8 +90,20 @@ module internal ScrabbleBot
 
 
     let validPerpendicularLetters (s: genState) : MultiSet.MultiSet<uint32> =
-
-        s.rack        
+        let testAnchor1 = 
+                match s.vertical with
+                | true  -> (fst s.anchor - 1, snd s.anchor)
+                | false -> (fst s.anchor, snd s.anchor - 1)
+        let testAnchor2 =
+                match s.vertical with
+                | true  -> (fst s.anchor + 1, snd s.anchor)
+                | false -> (fst s.anchor , snd s.anchor + 1)
+        let leftSqr = lookup {s with anchor = testAnchor1}
+        let rightSqr = lookup {s with anchor = testAnchor2}
+        match leftSqr, rightSqr with 
+            | Some _, _ 
+            | _, Some _-> s.rack
+            | _ -> s.rack  
 
     let gen (s: genState) = 
         finalWords <- []
@@ -123,20 +135,7 @@ module internal ScrabbleBot
     
 
         and GoOn (letter: unplacedTile) (ourTile: bool) (s: genState) =
-            let testAnchor1 = 
-                match s.vertical with
-                | true  -> (fst s.anchor - 1, snd s.anchor)
-                | false -> (fst s.anchor, snd s.anchor - 1)
-            let testAnchor2 =
-                match s.vertical with
-                | true  -> (fst s.anchor + 1, snd s.anchor)
-                | false -> (fst s.anchor , snd s.anchor + 1)
-            let leftSqr = lookup {s with anchor = testAnchor1}
-            let rightSqr = lookup {s with anchor = testAnchor2}
-            match leftSqr, rightSqr, ourTile with
-            | Some _, _, true -> ()
-            | _, Some _, true -> ()
-            | _ ->
+            
                 match s.position <= 0 with
                 | true -> 
                 
