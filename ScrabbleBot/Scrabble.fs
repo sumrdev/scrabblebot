@@ -110,8 +110,8 @@ module Scrabble =
         let verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true mailbox)
         let horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false mailbox)
         
-        let a = List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel |> Async.RunSynchronously |> ignore
-        let v =genInitalMoves st mailbox |> ignore
+        List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel |> Async.RunSynchronously |> ignore
+        genInitalMoves st mailbox |> ignore
 
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
         
@@ -126,47 +126,6 @@ module Scrabble =
         | [] -> return SMPass
         | m -> return SMPlay (List.head m |> fst)
     }
-
-    let genMoves (st : State.state) (pos: coord) vertical mailbox =
-        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 mailbox
-        ScrabbleBot.gen state |> ignore
-        ()
-
-
-
-    
-    let genFirstMove (st : State.state) mailbox = 
-        match st.playedTiles |> Map.isEmpty with
-        | true -> 
-            genMoves st (0, 0) true mailbox |> ignore
-            genMoves st (0, 0) false mailbox |> ignore
-        | false -> ()
-                
-    //get the move to play
-    let rec getMove (st : State.state) =
-        let mailbox = getMailbox ()
-        
-        let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
-        let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
-        Print.printHand st.tiles st.hand
-        
-        //genFirstMove st mailbox
-        List.map (fun x -> genMoves st x true mailbox) toCheckVertical |> ignore
-        List.map (fun x -> genMoves st x false mailbox) toCheckHorizontal |> ignore
-        
-  
-        let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
-
-        let res = mailbox.PostAndAsyncReply (fun ch -> ScrabbleBot.Get ch) |> Async.RunSynchronously
-        forcePrint (sprintf "Possible moves: %A\n" (List.length res))
-        let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
-        let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        //forcePrint (sprintf "Possible moves: %A\n" sorted)
-        match sorted with
-        | [] -> SMPass
-        | m -> SMPlay (List.head m |> fst)
-        
-        
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
         
