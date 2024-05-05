@@ -6,7 +6,7 @@ open ScrabbleUtil.ServerCommunication
 open System.IO
 
 open ScrabbleUtil.DebugPrint
-
+open System.Threading
 
 type tileInstance = coord * (uint32 * (char * int))
 
@@ -101,8 +101,7 @@ module Scrabble =
             asyncGenMoves st (0, 0) false mailbox |> Async.RunSynchronously
         | false -> ()
 
-    let asyncGetMove (st : State.state) : Async<ServerMessage> = async {
-        let mailbox = getMailbox ()
+    let asyncGetMove (st : State.state) mailbox = async {
 
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
@@ -112,7 +111,9 @@ module Scrabble =
         
         List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel |> Async.RunSynchronously |> ignore
         genInitalMoves st mailbox |> ignore
+    }
 
+    let getMoveFromMailbox (mailbox: MailboxProcessor<ScrabbleBot.msg>)  =
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
         
         let res = mailbox.PostAndAsyncReply (fun ch -> ScrabbleBot.Get ch) |> Async.RunSynchronously
@@ -123,9 +124,8 @@ module Scrabble =
 
 
         match sorted with
-        | [] -> return SMPass
-        | m -> return SMPlay (List.head m |> fst)
-    }
+        | [] -> SMPass
+        | m -> SMPlay (List.head m |> fst)
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
         
@@ -136,18 +136,25 @@ module Scrabble =
         {st with playedTiles = playedTiles'}
 
 
-
     let playGame cstream pieces (st : State.state) =
-        let mutable count = 0 
         let rec aux (st : State.state) =
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
-                // remove the force print when you move on from manual input (or when you have learnt the format)
-                let move = asyncGetMove st |> Async.RunSynchronously
-                //if count < 2 then //shoudl stop for debug
-                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                count <- count + 1
-                send cstream move
+                let mailbox = getMailbox ()
+                let moveTask = asyncGetMove st mailbox
+                let ok () = send cstream (getMoveFromMailbox mailbox)
+                let ex e = failwith (sprintf "Error: %A" e)
+                let can e = send cstream (getMoveFromMailbox mailbox)
+                let cts = new CancellationTokenSource()
+
+                Async.StartWithContinuations(moveTask, ok, ex, can, cts.Token) |> ignore
+                let t= Async.StartAsTask(moveTask)
+                let timeout = Async.StartAsTask (async {
+                    Async.Sleep 2000 |> Async.RunSynchronously
+                    return SMPass
+                })
+                Task.WaitAny (t, timeout ) |> ignore
+                cts.Cancel()
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
