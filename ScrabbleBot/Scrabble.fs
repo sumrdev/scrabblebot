@@ -150,8 +150,11 @@ module Scrabble =
                 Async.StartWithContinuations(moveTask, ok, ex, can, cts.Token) |> ignore
                 let t= Async.StartAsTask(moveTask)
                 let timeout = Async.StartAsTask (async {
-                    Async.Sleep 2000 |> Async.RunSynchronously
-                    return SMPass
+                    match st.timeout with
+                    | None -> do! Async.Sleep 100_000 
+                    | Some t -> 
+                        let intValue : int = int t
+                        do! Async.Sleep intValue 
                 })
                 Task.WaitAny (t, timeout ) |> ignore
                 cts.Cancel()
