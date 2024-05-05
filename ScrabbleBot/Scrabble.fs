@@ -81,19 +81,30 @@ module Scrabble =
         return ScrabbleBot.gen state
     }
 
-    let asyncGetMove (st : State.state) : Async<ScrabbleBot.tileInstance list> = async {
+    let asyncGetMove (st : State.state) : Async<ServerMessage> = async {
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         
         let! verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true) |> Async.Parallel
         let! horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false) |> Async.Parallel
         
-        let allMoves = List.concat (List.concat verticalMovesTasks) @ List.concat (List.concat horizontalMovesTasks)
+        let allMoves = List.concat (verticalMovesTasks) @ List.concat (horizontalMovesTasks)
+        let res = 
+            match List.isEmpty allMoves  with
+            | false -> allMoves
+            | true ->  
+                let ver = (asyncGenMoves st (0, 0) true |> Async.RunSynchronously) 
+                let hor = (asyncGenMoves st (0, 0) false |> Async.RunSynchronously)
+                ver @ hor
 
-        // ... continue with filtering and scoring moves as before ...
-        //let bestMove = // calculate the best move
-        //return bestMove
-        return [] //temp should be removed
+        let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
+
+        let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
+        let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
+        let finalMove = match sorted with
+                        | [] -> SMPass
+                        | l ->  SMPlay(List.head l |> fst)
+        return finalMove
     }
 
     let genMoves (st : State.state) (pos: coord) vertical: ScrabbleBot.tileInstance list list =
@@ -139,8 +150,7 @@ module Scrabble =
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                let move = getMove st
-                
+                let move = asyncGetMove st |> Async.RunSynchronously
                 //if count < 2 then //shoudl stop for debug
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                 count <- count + 1
