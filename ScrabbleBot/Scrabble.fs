@@ -61,7 +61,7 @@ module Scrabble =
         //clear the legalmoves list when player turn changes
         let rec aux (l : uint32 list) = 
             match l with
-            | [] -> forcePrint "No players left"; failwith "No players left"
+            | [] -> aux st.playersAlive
             | h::t when h=st.playerTurn -> 
                 match t with 
                 | [] -> List.head st.playersAlive
@@ -80,7 +80,6 @@ module Scrabble =
         let mutable finalWords: list<list<tileInstance>> = []
         let rec loop () = async {
             let! msg = inbox.Receive ()
-            //forcePrint (sprintf "Received message: %A\n" msg)
             match msg with
             | ScrabbleBot.Add m -> finalWords <- finalWords @ [m]
             | ScrabbleBot.Get ch -> ch.Reply finalWords
@@ -117,10 +116,8 @@ module Scrabble =
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
         
         let res = mailbox.PostAndAsyncReply (fun ch -> ScrabbleBot.Get ch) |> Async.RunSynchronously
-        forcePrint (sprintf "Possible moves: %A\n" (List.length res))
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        //forcePrint (sprintf "Possible moves: %A\n" sorted)
         match sorted with
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
@@ -141,7 +138,7 @@ module Scrabble =
                 let mailbox = getMailbox ()
                 let moveTask = asyncGetMove st mailbox
                 let ok () = send cstream (getMoveFromMailbox mailbox)
-                let ex e = failwith (sprintf "Error: %A" e)
+                let ex e = send cstream SMPass
                 let can e = send cstream (getMoveFromMailbox mailbox)
                 let cts = new CancellationTokenSource()
 
@@ -158,12 +155,12 @@ module Scrabble =
                 cts.Cancel()
 
             let msg = recv cstream
-            forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
+            //forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
 
             match msg with
             | RCM (CMPlaySuccess(move, points, newTiles)) ->
-                forcePrint (sprintf "Successful play! Points: %d\n" points)   
-                Printf.printf "Successful play! Points: %d\n" points
+                //forcePrint (sprintf "Successful play! Points: %d\n" points)   
+                //Printf.printf "Successful play! Points: %d\n" points
                 let nextPlayer = updatePlayerTurn st
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
                 let tilesToBeAddedToHand = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty newTiles
@@ -177,50 +174,36 @@ module Scrabble =
                 
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                forcePrint (sprintf "Player %d played a word! Points: %d\n" pid points)
                 let nextPlayer = updatePlayerTurn st
-                forcePrint (sprintf "NEW TURN IS: %d\n" nextPlayer)
                 let st' = UpdateBoard st ms
                 let st'' = {st' with playerTurn = nextPlayer} // This state needs to be updated
                 aux st''
             | RCM (CMPlayFailed (pid, ms)) ->
-                forcePrint (sprintf "Player %d failed to play a word!\n" pid)
-                (* Failed play. Update your state *)
-                // This is only for your plays
-                // TODO maybe do something else than parse
-                //send cstream SMPass
-                //let st' = st // This state needs to be updated
-                aux st
+                let nextPlayer = updatePlayerTurn st
+                let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
+                aux st'
             | RCM (CMPassed (pid)) -> 
-                // Passed. Update your state
                 forcePrint (sprintf "Player %d passed!\n" pid)
                 let nextPlayer = updatePlayerTurn st
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             | RCM (CMForfeit (pid)) -> 
-                forcePrint (sprintf "Player %d forfeited!\n" pid)
-                // Forfeit. Update your state
                 let st' = playerForfeit st // This state needs to be updated
                 aux st'
-            // Other player changed there hand
             | RCM (CMChange (playerId, numberOfTiles)) ->
                 let nextPlayer = updatePlayerTurn st
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             | RCM (CMTimeout(playerId) ) ->
-                // Player timed out could be me
                 let nextPlayer = updatePlayerTurn st
                 let st' = {st with playerTurn = nextPlayer} // This state needs to be updated
                 aux st'
             
             | RCM (CMGameOver _) -> forcePrint (sprintf "Game Over\n")
             | RCM a ->
-                    forcePrint (sprintf "FAILURE!! not implemented: %A\n" a)
-                    failwith (sprintf "not implemented: %A" a)
-                    aux st
+                aux st
             | RGPE err -> 
-                //failwith (sprintf "Error ")
-                forcePrint (sprintf "Gameplay Error:\n%A" err); aux st
+                aux st
         aux st
 
     let startGame 
