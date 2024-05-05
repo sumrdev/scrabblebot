@@ -102,7 +102,7 @@ module Scrabble =
         ()
 
 
-    let getMailbox = MailboxProcessor.Start(fun inbox ->
+    let getMailbox () = MailboxProcessor.Start(fun inbox ->
         let mutable finalWords: list<list<tileInstance>> = []
         let rec loop () = async {
             let! msg = inbox.Receive ()
@@ -123,7 +123,7 @@ module Scrabble =
                 
     //get the move to play
     let rec getMove (st : State.state) =
-        let mailbox = getMailbox 
+        let mailbox = getMailbox ()
         
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
