@@ -75,27 +75,34 @@ module Scrabble =
         {st with playersAlive = playersAlive'}
 
     type word = (uint32 * (char * int)) list
+
+
     //async function to get the possible moves
     let asyncGenMoves (st : State.state) (pos: coord) vertical: Async<ScrabbleBot.tileInstance list list> = async {
         let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
         return ScrabbleBot.gen state
     }
 
+    let genInitalMoves (st : State.state) : ScrabbleBot.tileInstance list list =
+        let ver = (asyncGenMoves st (0, 0) true |> Async.RunSynchronously) 
+        let hor = (asyncGenMoves st (0, 0) false |> Async.RunSynchronously)
+        ver @ hor
+
     let asyncGetMove (st : State.state) : Async<ServerMessage> = async {
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         
-        let! verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true) |> Async.Parallel
-        let! horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false) |> Async.Parallel
+        let verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true)
+        let horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false)
         
-        let allMoves = List.concat (verticalMovesTasks) @ List.concat (horizontalMovesTasks)
+        let! allMoves = List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel
+        let moves = Array.toList allMoves |> List.concat
+        let isEmpty = List.isEmpty moves
         let res = 
-            match List.isEmpty allMoves  with
-            | false -> allMoves
+            match isEmpty with
+            | false -> moves
             | true ->  
-                let ver = (asyncGenMoves st (0, 0) true |> Async.RunSynchronously) 
-                let hor = (asyncGenMoves st (0, 0) false |> Async.RunSynchronously)
-                ver @ hor
+                genInitalMoves st
 
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
 
