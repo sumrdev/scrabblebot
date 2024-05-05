@@ -90,26 +90,32 @@ module internal ScrabbleBot
             | _ -> ()
     let checkPerpendicular (s: genState) : MultiSet.MultiSet<uint32> =
         let vertical = not s.vertical
-        let s' = {s with vertical=vertical}
+        let s' = {s with vertical=vertical; anchor= getcoord s}
         // get new gaddag
+        //forcePrint (sprintf "Checking perpendicular\n")
         let rec step (gaddag: Dictionary.Dict) (pos: int) (backwards: bool) (prevWord: bool) : bool=
-            match lookup {s with position=pos}, backwards with 
+            //forcePrint (sprintf "Step: %A\n" pos)
+            match lookup {s' with position=pos}, backwards with 
             | Some tile, true -> 
+                //forcePrint (sprintf "Tile: %A\n" (getCharTile tile, getcoord s', pos));
                 match Dictionary.step (getCharTile tile) gaddag with 
                 | Some (isWord, gaddag') -> step gaddag' (pos-1) true isWord
                 | None -> false
             | Some tile, false ->
+                //forcePrint (sprintf "Tile: %A\n" (getCharTile tile, getcoord s', pos));
                 match Dictionary.step (getCharTile tile) gaddag with 
                 | Some (isWord, gaddag') -> step gaddag' (pos+1) false isWord
                 | None -> false
             | None, true -> 
+                //forcePrint (sprintf "Change direction\n");
                 match (Dictionary.reverse gaddag) with
                 | Some (isWord, gaddag) -> step gaddag (1) false isWord
                 | None -> false
-            | None, false -> prevWord
+            | None, false -> prevWord//forcePrint (sprintf "done: %A\n" prevWord) 
         s.rack |> MultiSet.toList |> List.filter (fun id -> 
             let tileList = getTileList id s'.tiles
             List.exists (fun (u: unplacedTile) ->
+                //forcePrint (sprintf "Checking tile: %A\n" (getChar u, getcoord s', s'.position, s'.vertical));
                 match Dictionary.step (getChar u) s'.freshGaddag with
                 | Some (_, gaddag) -> step gaddag -1 true false
                 | None -> false
@@ -129,8 +135,9 @@ module internal ScrabbleBot
 
         match leftSqr, rightSqr with 
             | Some _, _ 
-            | _, Some _-> forcePrint (sprintf "%A\n" (checkPerpendicular s)); checkPerpendicular s
-            | _ -> s.rack  
+            | _, Some _ -> //forcePrint (sprintf "%A\n" (checkPerpendicular s)); 
+                checkPerpendicular s
+            | _ -> s.rack 
 
     let gen (s: genState) = 
         finalWords <- []
