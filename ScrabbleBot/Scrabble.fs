@@ -6,7 +6,7 @@ open ScrabbleUtil.ServerCommunication
 open System.IO
 
 open ScrabbleUtil.DebugPrint
-
+open System.Threading
 
 type tileInstance = coord * (uint32 * (char * int))
 
@@ -75,53 +75,55 @@ module Scrabble =
         {st with playersAlive = playersAlive'}
 
     type word = (uint32 * (char * int)) list
+
+    let getMailbox () = MailboxProcessor.Start(fun inbox ->
+        let mutable finalWords: list<list<tileInstance>> = []
+        let rec loop () = async {
+            let! msg = inbox.Receive ()
+            //forcePrint (sprintf "Received message: %A\n" msg)
+            match msg with
+            | ScrabbleBot.Add m -> finalWords <- finalWords @ [m]
+            | ScrabbleBot.Get ch -> ch.Reply finalWords
+            | ScrabbleBot.Clear () -> finalWords <- []
+            return! loop () }
+        loop ())
+
     //async function to get the possible moves
-    let asyncGenMoves (st : State.state) (pos: coord) vertical: Async<ScrabbleBot.tileInstance list list> = async {
-        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 st.board
+    let asyncGenMoves (st : State.state) (pos: coord) vertical mailbox = async {
+        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 st.board mailbox
         return ScrabbleBot.gen state
     }
 
-    let asyncGetMove (st : State.state) : Async<ScrabbleBot.tileInstance list> = async {
+    let genInitalMoves (st : State.state) mailbox : unit =
+        match st.playedTiles |> Map.isEmpty with
+        | true ->
+            asyncGenMoves st (0, 0) true mailbox |> Async.RunSynchronously
+            asyncGenMoves st (0, 0) false mailbox |> Async.RunSynchronously
+        | false -> ()
+
+    let asyncGetMove (st : State.state) mailbox = async {
+
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         
-        let! verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true) |> Async.Parallel
-        let! horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false) |> Async.Parallel
+        let verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true mailbox)
+        let horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false mailbox)
         
-        let allMoves = List.concat (List.concat verticalMovesTasks) @ List.concat (List.concat horizontalMovesTasks)
-
-        // ... continue with filtering and scoring moves as before ...
-        //let bestMove = // calculate the best move
-        //return bestMove
-        return [] //temp should be removed
+        List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel |> Async.RunSynchronously |> ignore
+        genInitalMoves st mailbox |> ignore
     }
 
-    let genMoves (st : State.state) (pos: coord) vertical: ScrabbleBot.tileInstance list list =
-        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 st.board
-        ScrabbleBot.gen state
-    //get the move to play
-    let rec getMove (st : State.state) =
-        let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
-        let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
-        Print.printHand st.tiles st.hand
-        let verticalMoves = List.map (fun x -> genMoves st x true) toCheckVertical
-        let horizontalMoves = List.map (fun x -> genMoves st x false) toCheckHorizontal
-        let allMoves = List.concat verticalMoves @ List.concat horizontalMoves
-        let res = 
-            match List.isEmpty allMoves  with
-            | false -> allMoves
-            | true ->  genMoves st (0, 0) true @ genMoves st (0, 0) false
-
+    let getMoveFromMailbox (mailbox: MailboxProcessor<ScrabbleBot.msg>)  =
         let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
-
+        
+        let res = mailbox.PostAndAsyncReply (fun ch -> ScrabbleBot.Get ch) |> Async.RunSynchronously
+        forcePrint (sprintf "Possible moves: %A\n" (List.length res))
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
         //forcePrint (sprintf "Possible moves: %A\n" sorted)
         match sorted with
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
-        
-        
 
     let UpdateBoard (st : State.state) (move : list<tileInstance>) =
         
@@ -132,19 +134,28 @@ module Scrabble =
         {st with playedTiles = playedTiles'}
 
 
-
     let playGame cstream pieces (st : State.state) =
-        let mutable count = 0 
         let rec aux (st : State.state) =
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
-                // remove the force print when you move on from manual input (or when you have learnt the format)
-                let move = getMove st
-                
-                //if count < 2 then //shoudl stop for debug
-                forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                count <- count + 1
-                send cstream move
+                let mailbox = getMailbox ()
+                let moveTask = asyncGetMove st mailbox
+                let ok () = send cstream (getMoveFromMailbox mailbox)
+                let ex e = failwith (sprintf "Error: %A" e)
+                let can e = send cstream (getMoveFromMailbox mailbox)
+                let cts = new CancellationTokenSource()
+
+                Async.StartWithContinuations(moveTask, ok, ex, can, cts.Token) |> ignore
+                let t= Async.StartAsTask(moveTask)
+                let timeout = Async.StartAsTask (async {
+                    match st.timeout with
+                    | None -> do! Async.Sleep 100_000 
+                    | Some t -> 
+                        let intValue : int = int t
+                        do! Async.Sleep intValue 
+                })
+                Task.WaitAny (t, timeout ) |> ignore
+                cts.Cancel()
 
             let msg = recv cstream
             forcePrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) msg) // keep the debug lines. They are useful.
