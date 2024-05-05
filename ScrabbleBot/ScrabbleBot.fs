@@ -22,10 +22,11 @@ module internal ScrabbleBot
         tiles: Map<uint32, tile>
         tilesAdded: int
         freshGaddag: Dictionary.Dict 
+        board: Parser.board
         //Timeout stuff
     }
     
-    let mkGenState (position: int) (word: tileInstance list)(rack: MultiSet.MultiSet<uint32>) (playableRack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) (tilesAdded: int) = {
+    let mkGenState (position: int) (word: tileInstance list)(rack: MultiSet.MultiSet<uint32>) (playableRack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) (tilesAdded: int) (board: Parser.board) = {
         position = position; 
         word = word; 
         rack = rack; 
@@ -37,6 +38,7 @@ module internal ScrabbleBot
         tiles = tiles;
         tilesAdded=tilesAdded; 
         freshGaddag = gaddag;
+        board = board;
         }
     
     let recordPlay(word: tileInstance list) =
@@ -136,9 +138,20 @@ module internal ScrabbleBot
         match leftSqr, rightSqr with 
             | Some _, _ 
             | _, Some _ -> //forcePrint (sprintf "%A\n" (checkPerpendicular s)); 
-                checkPerpendicular s
+                MultiSet.empty
+                //checkPerpendicular s
             | _ -> s.rack 
-
+    
+    let isHole (s : genState) : bool = 
+        let newCoord = getcoord s
+        let var = s.board.squares newCoord
+        match var with 
+        | StateMonad.Success(a) -> 
+            //forcePrint (sprintf "Checking hole at %A\n" (newCoord, false)); 
+            match a with 
+            | Some f -> false 
+            | None -> true
+        | _ -> true
     let gen (s: genState) = 
         finalWords <- []
         let rec gen' (s: genState) =
@@ -179,10 +192,16 @@ module internal ScrabbleBot
                         | false -> s.word
 
                     checkValidPlay {s with word=newWord; position=(s.position-1)} |> ignore
+                    match isHole {s with position=(s.position-1)} with
+                    | true -> ()
+                    | false -> 
                     gen' { s with position=(s.position - 1); word=newWord }// only if space to the left, but dont matter for now
                     let gaddag' = Dictionary.reverse s.gaddag
                     match gaddag' with
                     | Some (_, gaddag') ->
+                        match isHole {s with position=(1)} with
+                        | true -> ()
+                        | false -> 
                         gen' {s with position=(1); word=newWord; gaddag=gaddag' }
                     | None -> ()      
                     
@@ -191,6 +210,9 @@ module internal ScrabbleBot
                     let newCoord = getcoord s
                     let newWord = [(newCoord, letter)] @ s.word 
                     checkValidPlay {s with word=newWord; position=(s.position+1)} |> ignore
+                    match isHole {s with position=(s.position + 1)} with
+                    | true -> ()
+                    | false -> 
                     gen' { s with position=(s.position + 1); word=newWord}
 
         gen' s

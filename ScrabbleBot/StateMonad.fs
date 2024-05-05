@@ -81,5 +81,29 @@ module internal StateMonad
               | Some v -> Success (v, s)
               | None   -> Failure (VarNotFound x))
     //TODO: see if this is needed
-    let declare (var : string) : SM<unit> = failwith "Not implemented"   
-    let update (var : string) (value : int) : SM<unit> = failwith "Not implemented"      
+    let declare (var : string) : SM<unit> = 
+        S (fun s -> 
+            if Set.contains var s.reserved then Failure (ReservedName var)
+            else 
+                match s.vars with
+                | [] -> Failure (ArgumentException "No states to declare in")
+                | m :: ms -> 
+                    match Map.tryFind var m with
+                    | Some _ -> Failure (VarExists var)
+                    | None   -> Success ((), { s with vars = (Map.add var 0 m) :: ms }))
+    let update (var : string) (value : int) : SM<unit> = 
+        S (fun s -> 
+            let rec aux =
+                function
+                | []      -> None
+                | m :: ms -> 
+                    match Map.tryFind var m with
+                    | Some _ -> Some (Map.add var value m, ms)
+                    | None   -> 
+                        match aux ms with
+                        | Some (m', ms') -> Some (m, m' :: ms')
+                        | None           -> None
+
+            match aux s.vars with
+            | Some (m, ms) -> Success ((), { s with vars = m :: ms })
+            | None         -> Failure (VarNotFound var))

@@ -75,47 +75,29 @@ module Scrabble =
         {st with playersAlive = playersAlive'}
 
     type word = (uint32 * (char * int)) list
-
-
     //async function to get the possible moves
     let asyncGenMoves (st : State.state) (pos: coord) vertical: Async<ScrabbleBot.tileInstance list list> = async {
-        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
+        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 st.board
         return ScrabbleBot.gen state
     }
 
-    let genInitalMoves (st : State.state) : ScrabbleBot.tileInstance list list =
-        let ver = (asyncGenMoves st (0, 0) true |> Async.RunSynchronously) 
-        let hor = (asyncGenMoves st (0, 0) false |> Async.RunSynchronously)
-        ver @ hor
-
-    let asyncGetMove (st : State.state) : Async<ServerMessage> = async {
+    let asyncGetMove (st : State.state) : Async<ScrabbleBot.tileInstance list> = async {
         let toCheckVertical = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x, y+1) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         let toCheckHorizontal = Map.fold (fun acc (x, y) v -> if  Map.containsKey (x+1, y) st.playedTiles then acc else acc@[fst v]) [] st.playedTiles
         
-        let verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true)
-        let horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false)
+        let! verticalMovesTasks = toCheckVertical |> List.map (fun x -> asyncGenMoves st x true) |> Async.Parallel
+        let! horizontalMovesTasks = toCheckHorizontal |> List.map (fun x -> asyncGenMoves st x false) |> Async.Parallel
         
-        let! allMoves = List.concat [verticalMovesTasks; horizontalMovesTasks] |> Async.Parallel
-        let moves = Array.toList allMoves |> List.concat
-        let isEmpty = List.isEmpty moves
-        let res = 
-            match isEmpty with
-            | false -> moves
-            | true ->  
-                genInitalMoves st
+        let allMoves = List.concat (List.concat verticalMovesTasks) @ List.concat (List.concat horizontalMovesTasks)
 
-        let getPoints (word: tileInstance list) : int = List.fold (fun acc (_, (_, (_, v))) -> acc + v) 0 word
-
-        let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
-        let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        let finalMove = match sorted with
-                        | [] -> SMPass
-                        | l ->  SMPlay(List.head l |> fst)
-        return finalMove
+        // ... continue with filtering and scoring moves as before ...
+        //let bestMove = // calculate the best move
+        //return bestMove
+        return [] //temp should be removed
     }
 
     let genMoves (st : State.state) (pos: coord) vertical: ScrabbleBot.tileInstance list list =
-        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0
+        let state = ScrabbleBot.mkGenState 0 [] st.hand st.hand st.dict pos st.playedTiles vertical st.tiles 0 st.board
         ScrabbleBot.gen state
     //get the move to play
     let rec getMove (st : State.state) =
@@ -134,7 +116,7 @@ module Scrabble =
 
         let withPoints: (tileInstance list * int) list = List.map (fun x -> (x, getPoints x)) res
         let sorted: (tileInstance list * int) list = List.sortBy (fun (x, k) -> -k) withPoints
-        // forcePrint (sprintf "Possible moves: %A\n" sorted)
+        //forcePrint (sprintf "Possible moves: %A\n" sorted)
         match sorted with
         | [] -> SMPass
         | m -> SMPlay (List.head m |> fst)
@@ -157,7 +139,8 @@ module Scrabble =
             if(st.playerTurn = st.playerNumber) then
                 // Print.printHand pieces (State.hand st)
                 // remove the force print when you move on from manual input (or when you have learnt the format)
-                let move = asyncGetMove st |> Async.RunSynchronously
+                let move = getMove st
+                
                 //if count < 2 then //shoudl stop for debug
                 forcePrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                 count <- count + 1
@@ -225,7 +208,7 @@ module Scrabble =
                     failwith (sprintf "not implemented: %A" a)
                     aux st
             | RGPE err -> 
-                failwith (sprintf "Error ")
+                //failwith (sprintf "Error ")
                 forcePrint (sprintf "Gameplay Error:\n%A" err); aux st
         aux st
 

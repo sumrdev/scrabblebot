@@ -25,7 +25,7 @@ let main argv =
     System.Console.Clear()
 
 //    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
-    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
+    let board      = ScrabbleUtil.HoleBoard.holeBoard ()
 
 //    let board      = ScrabbleUtil.RandomBoard.randomBoard ()
 //    let board      = ScrabbleUtil.RandomBoard.randomBoardSeed (Some 42)
@@ -38,7 +38,7 @@ let main argv =
     let words     = readLines "Dictionaries/English.txt"
 
     let handSize   = 7u
-    let timeout    = None
+    let timeout    = Some 3000u
     let tiles      = ScrabbleUtil.English.tiles 1u
     let seed       = None
     let port       = 13001
