@@ -8,7 +8,11 @@ module internal ScrabbleBot
         failwith "Not implemented"  *)
     type unplacedTile = uint32 * (char * int)
     type tileInstance = coord * unplacedTile
-    let mutable finalWords: list<list<tileInstance>> = []
+
+    type msg =
+    | Add of list<tileInstance>
+    | Get of AsyncReplyChannel<list<tileInstance> list>
+    | Clear of unit
 
     type genState = {
         position: int
@@ -21,11 +25,11 @@ module internal ScrabbleBot
         vertical: bool
         tiles: Map<uint32, tile>
         tilesAdded: int
-        
+        mailbox: MailboxProcessor<msg>
         //Timeout stuff
     }
     
-    let mkGenState (position: int) (word: tileInstance list)(rack: MultiSet.MultiSet<uint32>) (playableRack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) (tilesAdded: int) = {
+    let mkGenState (position: int) (word: tileInstance list)(rack: MultiSet.MultiSet<uint32>) (playableRack: MultiSet.MultiSet<uint32>) (gaddag: Dictionary.Dict) (anchor: coord) (playedTiles: Map<coord, tileInstance>) (vertical: bool) (tiles: Map<uint32, tile>) (tilesAdded: int) mailbox = {
         position = position; 
         word = word; 
         rack = rack; 
@@ -35,15 +39,10 @@ module internal ScrabbleBot
         playedTiles = playedTiles; 
         vertical = vertical; 
         tiles = tiles;
-        tilesAdded=tilesAdded; 
-        }
+        tilesAdded=tilesAdded;
+        mailbox=mailbox
+    }
     
-    let recordPlay(word: tileInstance list) =
-        let letters =  List.map (fun (coord, (id, (c, _))) -> c) word
-        let reversed = List.rev letters
-        let string = new string (reversed |> List.toArray)
-        //forcePrint (sprintf "Found valid word: %A\n"  string)
-        finalWords <- finalWords @ [word]
 
     let getcoord (s: genState) = 
         match s.vertical with
@@ -61,6 +60,12 @@ module internal ScrabbleBot
     let getCharTile (c: tileInstance) = 
         let (_, (_, (c, _))) = c
         c
+    let recordPlay(s) =
+        //let letters =  List.map (fun (_, w) -> getChar w) s.word
+        //let reversed = List.rev letters
+        //let string = new string (reversed |> List.toArray)
+        //forcePrint (sprintf "Found valid word: %A\n"  string)
+        s.mailbox.Post (Add s.word)
 
     let lookup (s: genState): tileInstance option =
         let newCoord: coord = getcoord s
@@ -85,7 +90,7 @@ module internal ScrabbleBot
             | Some (true, _) -> 
                 match lookup s with
                 | Some l -> ()
-                | None -> recordPlay s.word // record if no letter to the left
+                | None -> recordPlay s // record if no letter to the left
             | _ -> ()
 
 
@@ -94,7 +99,6 @@ module internal ScrabbleBot
         s.rack        
 
     let gen (s: genState) = 
-        finalWords <- []
         let rec gen' (s: genState) =
             match lookup s with
             | Some l -> 
@@ -162,5 +166,4 @@ module internal ScrabbleBot
                     gen' { s with position=(s.position + 1); word=newWord}
 
         gen' s
-        finalWords
         
